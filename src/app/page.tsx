@@ -1,65 +1,166 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { usePlanner } from "@/context/PlannerProvider";
+import {
+  addDaysISO,
+  formatDisplayDate,
+  minutesToLabel,
+  startOfWeekISO,
+  todayISO,
+} from "@/lib/dates";
+import {
+  completedThisWeek,
+  sessionsForDate,
+  taskOverdue,
+  upcomingDeadlines,
+} from "@/lib/selectors";
+import Link from "next/link";
+
+export default function DashboardPage() {
+  const { subjects, tasks, sessions } = usePlanner();
+  const today = todayISO();
+  const weekStart = startOfWeekISO(today);
+  const weekEnd = addDaysISO(weekStart, 6);
+
+  const subjectMap = Object.fromEntries(subjects.map((s) => [s.id, s]));
+  const todaySessions = sessionsForDate(sessions, today);
+  const overdue = tasks.filter((t) => taskOverdue(t, today));
+  const upcoming = upcomingDeadlines(tasks, today, 14);
+  const doneThisWeek = completedThisWeek(tasks, weekStart, weekEnd);
+  const openCount = tasks.filter((t) => t.status !== "done").length;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
+          Dashboard
+        </h1>
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+          {formatDisplayDate(today)} · {doneThisWeek} task(s) completed this week
+          {openCount > 0 ? ` · ${openCount} open` : ""}
+        </p>
+      </div>
+
+      <section className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+          <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+            Today&apos;s sessions
+          </h2>
+          {todaySessions.length === 0 ? (
+            <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
+              Nothing scheduled. Add blocks on{" "}
+              <Link href="/schedule" className="text-indigo-600 underline">
+                Schedule
+              </Link>
+              .
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {todaySessions.map((s) => {
+                const task = s.taskId
+                  ? tasks.find((t) => t.id === s.taskId)
+                  : null;
+                const sub = task?.subjectId
+                  ? subjectMap[task.subjectId]
+                  : null;
+                return (
+                  <li
+                    key={s.id}
+                    className="flex items-center justify-between gap-2 text-sm"
+                  >
+                    <span className="flex items-center gap-2 min-w-0">
+                      {sub && (
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ backgroundColor: sub.color }}
+                        />
+                      )}
+                      <span className="truncate">
+                        {task?.title ?? "Unlinked session"}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-zinc-500 tabular-nums">
+                      {minutesToLabel(s.startMinutes)} –{" "}
+                      {minutesToLabel(s.endMinutes)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+          <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+            Overdue
+          </h2>
+          {overdue.length === 0 ? (
+            <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
+              You&apos;re caught up on due dates.
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {overdue.slice(0, 6).map((t) => {
+                const sub = t.subjectId ? subjectMap[t.subjectId] : null;
+                return (
+                  <li key={t.id} className="flex items-center gap-2 text-sm">
+                    {sub && (
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: sub.color }}
+                      />
+                    )}
+                    <span className="truncate flex-1">{t.title}</span>
+                    <span className="text-rose-600 dark:text-rose-400 shrink-0">
+                      {t.dueDate}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+          Upcoming deadlines (14 days)
+        </h2>
+        {upcoming.length === 0 ? (
+          <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
+            No deadlines in the next two weeks — or add due dates on{" "}
+            <Link href="/tasks" className="text-indigo-600 underline">
+              Tasks
+            </Link>
+            .
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+        ) : (
+          <ul className="mt-3 divide-y divide-zinc-100 dark:divide-zinc-900">
+            {upcoming.map((t) => {
+              const sub = t.subjectId ? subjectMap[t.subjectId] : null;
+              return (
+                <li
+                  key={t.id}
+                  className="flex items-center gap-3 py-2 first:pt-0 last:pb-0 text-sm"
+                >
+                  {sub && (
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: sub.color }}
+                    />
+                  )}
+                  <span className="flex-1 truncate font-medium text-zinc-900 dark:text-zinc-100">
+                    {t.title}
+                  </span>
+                  <span className="shrink-0 text-zinc-500 tabular-nums">
+                    {t.dueDate ? formatDisplayDate(t.dueDate) : ""}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
