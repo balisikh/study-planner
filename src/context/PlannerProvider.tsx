@@ -23,6 +23,7 @@ import {
 } from "@/lib/types";
 import { buildDemoPlannerState, defaultState, loadState, saveState } from "@/lib/storage";
 import { normalizeSubjectName } from "@/lib/subjectTemplates";
+import { findConflictingTaskTitle } from "@/lib/taskTitleDedupe";
 
 function nowISO(): string {
   return new Date().toISOString();
@@ -40,10 +41,12 @@ type PlannerContextValue = {
   sessions: StudySession[];
   upsertSubject: (
     s: Omit<Subject, "id" | "createdAt" | "updatedAt"> & { id?: string }
-  ) => void;
+  ) => string | undefined;
   deleteSubject: (id: string) => void;
   mergeSubjects: (fromId: string, intoId: string) => void;
-  upsertTask: (t: Omit<Task, "id" | "createdAt" | "updatedAt"> & { id?: string }) => void;
+  upsertTask: (
+    t: Omit<Task, "id" | "createdAt" | "updatedAt"> & { id?: string }
+  ) => boolean;
   deleteTask: (id: string) => void;
   upsertAvailability: (
     a: Omit<AvailabilityRule, "id"> & { id?: string }
@@ -73,8 +76,11 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const upsertSubject = useCallback(
-    (input: Omit<Subject, "id" | "createdAt" | "updatedAt"> & { id?: string }) => {
+    (
+      input: Omit<Subject, "id" | "createdAt" | "updatedAt"> & { id?: string }
+    ): string | undefined => {
       const t = nowISO();
+      let resultId: string | undefined;
       set((p) => {
         if (input.id) {
           const desired = normalizeSubjectName(input.name);
@@ -84,6 +90,7 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
           if (conflict) {
             return p;
           }
+          resultId = input.id;
           return {
             ...p,
             subjects: p.subjects.map((s) =>
@@ -110,8 +117,10 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
           createdAt: t,
           updatedAt: t,
         };
+        resultId = s.id;
         return { ...p, subjects: [...p.subjects, s] };
       });
+      return resultId;
     },
     [set]
   );
@@ -143,10 +152,26 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
   );
 
   const upsertTask = useCallback(
-    (input: Omit<Task, "id" | "createdAt" | "updatedAt"> & { id?: string }) => {
-      const t = nowISO();
+    (
+      input: Omit<Task, "id" | "createdAt" | "updatedAt"> & { id?: string }
+    ): boolean => {
+      const ts = nowISO();
+      const title = input.title.trim();
+      const key = normalizeSubjectName(title);
+      if (!key) return false;
+
+      let applied = false;
       set((p) => {
+        if (
+          findConflictingTaskTitle(p.tasks, title, {
+            excludeTaskId: input.id,
+          })
+        ) {
+          return p;
+        }
+
         if (input.id) {
+          applied = true;
           return {
             ...p,
             tasks: p.tasks.map((x) =>
@@ -154,10 +179,11 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
                 ? {
                     ...x,
                     ...input,
+                    title,
                     id: input.id,
-                    updatedAt: t,
+                    updatedAt: ts,
                     completedAt:
-                      input.status === "done" ? (x.completedAt || t) : null,
+                      input.status === "done" ? (x.completedAt || ts) : null,
                   }
                 : x
             ),
@@ -165,19 +191,21 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
         }
         const task: Task = {
           id: newId(),
-          title: input.title,
+          title,
           subjectId: input.subjectId,
           dueDate: input.dueDate,
           priority: input.priority,
           estimateMinutes: input.estimateMinutes,
           notes: input.notes,
           status: input.status,
-          createdAt: t,
-          updatedAt: t,
-          completedAt: input.status === "done" ? t : null,
+          createdAt: ts,
+          updatedAt: ts,
+          completedAt: input.status === "done" ? ts : null,
         };
+        applied = true;
         return { ...p, tasks: [...p.tasks, task] };
       });
+      return applied;
     },
     [set]
   );
@@ -282,6 +310,17 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
       !Array.isArray(parsed.sessions)
     ) {
       throw new Error("Invalid backup file");
+    }
+    const seenTitles = new Set<string>();
+    for (const task of parsed.tasks) {
+      const k = normalizeSubjectName(String(task.title ?? "").trim());
+      if (!k) continue;
+      if (seenTitles.has(k)) {
+        throw new Error(
+          "Backup contains duplicate task titles (spacing and letter case are ignored when comparing)."
+        );
+      }
+      seenTitles.add(k);
     }
     setState(parsed);
   }, []);

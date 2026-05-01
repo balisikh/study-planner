@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePlanner } from "@/context/PlannerProvider";
+import { formatDisplayDate } from "@/lib/dates";
+import { findDuplicateTitleGroups } from "@/lib/taskTitleDedupe";
+import type { Task } from "@/lib/types";
 
 function backupFilename(): string {
   const d = new Date();
@@ -11,13 +14,89 @@ function backupFilename(): string {
 }
 
 export default function SettingsPage() {
-  const { exportState, importState, reset, loadDemo } = usePlanner();
+  const {
+    exportState,
+    importState,
+    reset,
+    loadDemo,
+    tasks,
+    subjects,
+    sessions,
+    deleteTask,
+  } = usePlanner();
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [backupNotice, setBackupNotice] = useState<string | null>(null);
   const [demoConfirm, setDemoConfirm] = useState(false);
   const [demoFeedback, setDemoFeedback] = useState<string | null>(null);
   const [demoError, setDemoError] = useState<string | null>(null);
+  const [dedupeFeedback, setDedupeFeedback] = useState<string | null>(null);
+
+  const duplicateGroups = useMemo(() => findDuplicateTitleGroups(tasks), [tasks]);
+
+  const subjectById = useMemo(
+    () => Object.fromEntries(subjects.map((s) => [s.id, s])),
+    [subjects]
+  );
+
+  const sessionsLinkedToTask = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of sessions) {
+      if (!s.taskId) continue;
+      m.set(s.taskId, (m.get(s.taskId) ?? 0) + 1);
+    }
+    return m;
+  }, [sessions]);
+
+  /** User override per normalized key; falls back to oldest task in each group. */
+  const [keeperByNormKey, setKeeperByNormKey] = useState<Record<string, string>>(
+    {}
+  );
+
+  function keeperIdForGroup(g: (typeof duplicateGroups)[0]): string {
+    const chosen = keeperByNormKey[g.normalizedKey];
+    if (chosen && g.tasks.some((t) => t.id === chosen)) return chosen;
+    return g.tasks[0]?.id ?? "";
+  }
+
+  useEffect(() => {
+    if (!dedupeFeedback) return;
+    const id = window.setTimeout(() => setDedupeFeedback(null), 6500);
+    return () => window.clearTimeout(id);
+  }, [dedupeFeedback]);
+
+  function taskSummaryLine(t: Task): string {
+    const sub = t.subjectId ? subjectById[t.subjectId] : null;
+    const subPart = sub ? sub.name : "No subject";
+    const due = t.dueDate ? ` · due ${formatDisplayDate(t.dueDate)}` : "";
+    const links = sessionsLinkedToTask.get(t.id) ?? 0;
+    const linkPart =
+      links === 0 ? "" : ` · ${links} scheduled session${links === 1 ? "" : "s"}`;
+    return `${subPart} · ${t.status}${due}${linkPart}`;
+  }
+
+  function applyTaskDedupe() {
+    const idsToRemove: string[] = [];
+    for (const g of duplicateGroups) {
+      const keeper = keeperIdForGroup(g);
+      if (!keeper) continue;
+      for (const t of g.tasks) {
+        if (t.id !== keeper) idsToRemove.push(t.id);
+      }
+    }
+    if (idsToRemove.length === 0) return;
+    const msg = [
+      `Remove ${idsToRemove.length} duplicate task(s)?`,
+      "The tasks you did not select will be deleted.",
+      "Schedule sessions that pointed at a removed task will become unlinked (optional task).",
+      "Download a backup first if you are unsure.",
+    ].join(" ");
+    if (!window.confirm(msg)) return;
+    for (const id of idsToRemove) deleteTask(id);
+    setDedupeFeedback(
+      `Removed ${idsToRemove.length} duplicate task(s). Kept one task per title.`
+    );
+  }
 
   function download(filename: string, text: string) {
     const blob = new Blob([text], { type: "application/json" });
@@ -110,6 +189,98 @@ export default function SettingsPage() {
           <p className="text-sm text-rose-600 dark:text-rose-400" role="alert">
             {importError}
           </p>
+        )}
+      </section>
+
+      <section
+        className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 space-y-4"
+        aria-labelledby="settings-dedupe-heading"
+      >
+        <h2
+          id="settings-dedupe-heading"
+          className="text-sm font-medium text-zinc-500 dark:text-zinc-400"
+        >
+          Duplicate task titles
+        </h2>
+        <p className="text-sm text-zinc-600 dark:text-zinc-300">
+          Older data might contain tasks that share the same title when spacing or letter case are
+          ignored. New saves block duplicates; use this tool to clean up what is already stored.
+          For each clash, choose the task row to <span className="font-medium">keep</span>; the
+          others will be deleted when you confirm.
+        </p>
+        {dedupeFeedback && (
+          <p className="text-sm text-emerald-700 dark:text-emerald-400" role="status" aria-live="polite">
+            {dedupeFeedback}
+          </p>
+        )}
+        {duplicateGroups.length === 0 ? (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            No duplicate titles found — nothing to fix here.
+          </p>
+        ) : (
+          <>
+            <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+              {duplicateGroups.length} clash
+              {duplicateGroups.length === 1 ? "" : "es"} (
+              {duplicateGroups.reduce((n, g) => n + g.tasks.length, 0)} tasks involved)
+            </p>
+            <div className="space-y-6">
+              {duplicateGroups.map((g, gi) => (
+                <fieldset
+                  key={g.normalizedKey}
+                  className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 space-y-3"
+                >
+                  <legend className="px-1 text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                    Same title as &ldquo;{g.tasks[0]?.title ?? g.normalizedKey}&rdquo; (
+                    {g.tasks.length} copies)
+                  </legend>
+                  <ul className="space-y-2">
+                    {g.tasks.map((t) => {
+                      const keeperId = keeperIdForGroup(g);
+                      return (
+                        <li key={t.id}>
+                          <label className="flex cursor-pointer gap-3 rounded-lg border border-transparent px-2 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 has-[:checked]:border-indigo-300 has-[:checked]:bg-indigo-50/60 dark:has-[:checked]:border-indigo-800 dark:has-[:checked]:bg-indigo-950/30">
+                            <input
+                              type="radio"
+                              className="mt-1"
+                              name={`dedupe-grp-${gi}`}
+                              checked={keeperId === t.id}
+                              onChange={() =>
+                                setKeeperByNormKey((prev) => ({
+                                  ...prev,
+                                  [g.normalizedKey]: t.id,
+                                }))
+                              }
+                            />
+                            <span className="min-w-0 flex-1 text-sm">
+                              <span className="font-medium text-zinc-900 dark:text-zinc-50">
+                                {t.title}
+                              </span>
+                              <span className="mt-0.5 block text-xs text-zinc-500 dark:text-zinc-400">
+                                {taskSummaryLine(t)}
+                              </span>
+                              <span className="mt-0.5 block font-mono text-[10px] text-zinc-400 dark:text-zinc-500">
+                                id {t.id}
+                              </span>
+                            </span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </fieldset>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button
+                type="button"
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+                onClick={applyTaskDedupe}
+              >
+                Delete non-selected duplicates
+              </button>
+            </div>
+          </>
         )}
       </section>
 

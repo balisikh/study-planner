@@ -62,6 +62,18 @@ export default function SchedulePage() {
     return m;
   }, [sessions, days]);
 
+  /** Open tasks plus the session-under-edit's linked task if it is done (otherwise missing from list breaks the select). */
+  const sessionTaskSelectOptions = useMemo(() => {
+    const open = tasks.filter((t) => t.status !== "done");
+    if (!editingId) return open;
+    const session = sessions.find((s) => s.id === editingId);
+    const tid = session?.taskId;
+    if (!tid) return open;
+    if (open.some((t) => t.id === tid)) return open;
+    const linked = tasks.find((t) => t.id === tid);
+    return linked ? [...open, linked] : open;
+  }, [tasks, sessions, editingId]);
+
   function resetForm() {
     setEditingId(null);
     setFormDate(today);
@@ -78,6 +90,10 @@ export default function SchedulePage() {
     setFormStart(minutesToTimeInput(s.startMinutes));
     setFormEnd(minutesToTimeInput(s.endMinutes));
     setFormStatus(s.status);
+    requestAnimationFrame(() => {
+      sessionFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      formDateInputRef.current?.focus();
+    });
   }
 
   function submit(e: React.FormEvent) {
@@ -209,13 +225,12 @@ export default function SchedulePage() {
               onChange={(e) => setFormTaskId(e.target.value)}
             >
               <option value="">— Optional —</option>
-              {tasks
-                .filter((t) => t.status !== "done")
-                .map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.title}
-                  </option>
-                ))}
+              {sessionTaskSelectOptions.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.title}
+                  {t.status === "done" ? " (done)" : ""}
+                </option>
+              ))}
             </select>
           </label>
           <label className="block">

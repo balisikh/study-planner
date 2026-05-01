@@ -7,6 +7,12 @@ import { formatDisplayDate } from "@/lib/dates";
 import { taskOverdue } from "@/lib/selectors";
 import { todayISO } from "@/lib/dates";
 import { parseTaskHash } from "@/lib/taskNav";
+import {
+  applyConceptTasksForSubject,
+  countConceptTasksForSubject,
+  estimateTopicTasksForSubjects,
+} from "@/lib/subjectConceptTasks";
+import { normalizeSubjectName } from "@/lib/subjectTemplates";
 
 const priorities: Priority[] = ["low", "medium", "high"];
 const statuses: TaskStatus[] = ["todo", "doing", "done"];
@@ -41,6 +47,16 @@ export default function TasksPage() {
   const [form, setForm] = useState(emptyForm());
   const [pulseTaskId, setPulseTaskId] = useState<string | null>(null);
   const appliedTaskHashRef = useRef<string>("");
+  const taskFormRef = useRef<HTMLFormElement | null>(null);
+  const taskTitleInputRef = useRef<HTMLInputElement | null>(null);
+  const [tasksBanner, setTasksBanner] = useState<string | null>(null);
+  const [fillAllTopicsPrompt, setFillAllTopicsPrompt] = useState(false);
+
+  useEffect(() => {
+    if (!tasksBanner) return;
+    const id = window.setTimeout(() => setTasksBanner(null), 6500);
+    return () => window.clearTimeout(id);
+  }, [tasksBanner]);
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
@@ -78,6 +94,21 @@ export default function TasksPage() {
 
   const subjectMap = useMemo(
     () => Object.fromEntries(subjects.map((s) => [s.id, s])),
+    [subjects]
+  );
+
+  const filterSubjectRow = useMemo(() => {
+    if (filterSubject === "all") return null;
+    return subjects.find((s) => s.id === filterSubject) ?? null;
+  }, [filterSubject, subjects]);
+
+  const topicPackCount = useMemo(() => {
+    if (!filterSubjectRow) return 0;
+    return countConceptTasksForSubject(filterSubjectRow);
+  }, [filterSubjectRow]);
+
+  const fillAllTopicsUpperBound = useMemo(
+    () => estimateTopicTasksForSubjects(subjects),
     [subjects]
   );
 
@@ -167,6 +198,11 @@ export default function TasksPage() {
       status: t.status,
       completedAt: t.completedAt,
     });
+    requestAnimationFrame(() => {
+      taskFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      taskTitleInputRef.current?.focus();
+      taskTitleInputRef.current?.select();
+    });
   }
 
   function cancelEdit() {
@@ -176,12 +212,39 @@ export default function TasksPage() {
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.title.trim()) return;
-    upsertTask({
+    const trimmed = form.title.trim();
+    if (!trimmed) return;
+    const saved = upsertTask({
       ...form,
+      title: trimmed,
       id: editingId ?? undefined,
     });
+    if (!saved) {
+      setTasksBanner(
+        "That title is already used by another task. Titles must be unique (extra spaces and letter case are ignored)."
+      );
+      return;
+    }
+    setTasksBanner(null);
     cancelEdit();
+  }
+
+  function runFillTopicTasksForAllSubjects() {
+    const plannerTitles = new Set(
+      tasks.map((t) => normalizeSubjectName(t.title))
+    );
+    let tasksAdded = 0;
+    for (const s of subjects) {
+      tasksAdded += applyConceptTasksForSubject(s, tasks, upsertTask, {
+        sharedPlannerTitles: plannerTitles,
+      });
+    }
+    setFillAllTopicsPrompt(false);
+    setTasksBanner(
+      tasksAdded > 0
+        ? `Added ${tasksAdded} task(s) across all subjects (titles already used anywhere were skipped).`
+        : "No new tasks added — checklists were already filled or no templates matched."
+    );
   }
 
   return (
@@ -191,14 +254,26 @@ export default function TasksPage() {
           Tasks
         </h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Capture work with due dates and priorities. Open tasks exclude completed ones by default.
-          From Schedule or Dashboard, open a linked session&apos;s task title to jump here.
+          Capture work with due dates and priorities. Task titles must be unique across your planner
+          (spacing and letter case are ignored), including when you type them manually or add topic
+          checklists. Open tasks exclude completed ones by default. From Schedule or Dashboard, open a
+          linked session&apos;s task title to jump here.
         </p>
+        {tasksBanner && (
+          <p
+            className="mt-3 text-sm text-emerald-700 dark:text-emerald-400"
+            role="status"
+            aria-live="polite"
+          >
+            {tasksBanner}
+          </p>
+        )}
       </div>
 
       <form
+        ref={taskFormRef}
         onSubmit={submit}
-        className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 space-y-4"
+        className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 space-y-4 scroll-mt-20"
       >
         <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
           {editingId ? "Edit task" : "New task"}
@@ -206,7 +281,11 @@ export default function TasksPage() {
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block sm:col-span-2">
             <span className="text-xs font-medium text-zinc-500">Title *</span>
+            <span className="mt-0.5 block text-[11px] leading-snug text-zinc-400 dark:text-zinc-500">
+              Must not match another task&apos;s title (normalized).
+            </span>
             <input
+              ref={taskTitleInputRef}
               required
               className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
               value={form.title}
@@ -382,6 +461,86 @@ export default function TasksPage() {
           <option value="title">Sort by title (A–Z)</option>
         </select>
       </div>
+
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            onClick={() => {
+              setTasksBanner(null);
+              setFillAllTopicsPrompt(true);
+            }}
+          >
+            Fill topic tasks for every subject
+          </button>
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+            Uses built-in checklists per subject. Task titles already anywhere in your planner are
+            skipped (no duplicate titles); each checklist line is added at most once.
+          </span>
+        </div>
+        {fillAllTopicsPrompt && (
+          <div
+            className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/30 space-y-3"
+            role="region"
+            aria-label="Confirm fill topics for all subjects"
+          >
+            <p className="text-sm text-zinc-800 dark:text-zinc-200">
+              Add missing checklist tasks for all {subjects.length} subject(s). At most about{" "}
+              {fillAllTopicsUpperBound} tasks if every checklist were empty — usually fewer, because
+              a title already used anywhere will not be added again.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+                onClick={runFillTopicTasksForAllSubjects}
+              >
+                Yes, fill missing topics everywhere
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-600"
+                onClick={() => setFillAllTopicsPrompt(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {filterSubjectRow && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200/80 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/40">
+          <button
+            type="button"
+            disabled={topicPackCount === 0}
+            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => {
+              setTasksBanner(null);
+              const added = applyConceptTasksForSubject(
+                filterSubjectRow,
+                tasks,
+                upsertTask
+              );
+              setTasksBanner(
+                added > 0
+                  ? `Added ${added} task(s). Skipped titles already used anywhere in Tasks.`
+                  : topicPackCount === 0
+                    ? "No built-in checklist for this subject name."
+                    : "No new tasks — every checklist title already exists in Tasks."
+              );
+            }}
+          >
+            Add topic checklist for filtered subject
+          </button>
+          <span className="text-xs text-zinc-600 dark:text-zinc-400">
+            {topicPackCount === 0
+              ? "No matching checklist for this subject."
+              : `${topicPackCount} topics in library — adds missing titles not already in Tasks.`}
+          </span>
+        </div>
+      )}
 
       <ul className="divide-y divide-zinc-200 rounded-2xl border border-zinc-200/80 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-950">
         {sorted.length === 0 ? (

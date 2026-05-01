@@ -1255,30 +1255,82 @@ export function getConceptTasksForSubject(
   }
 }
 
-export function countConceptTasksForSubject(subject: Subject): number {
-  return getConceptTasksForSubject(subject.category, subject.name).length;
+/** Unique checklist lines for UI and counts (normalized dedupe within the pack). */
+export function getDedupedConceptTaskTitles(
+  category: SubjectCategory,
+  subjectName: string
+): string[] {
+  const rawTitles = getConceptTasksForSubject(category, subjectName);
+  const seenInPack = new Set<string>();
+  const titles: string[] = [];
+  for (const title of rawTitles) {
+    const k = normalizeSubjectName(title);
+    if (seenInPack.has(k)) continue;
+    seenInPack.add(k);
+    titles.push(title);
+  }
+  return titles;
 }
 
+export function countConceptTasksForSubject(subject: Subject): number {
+  return getDedupedConceptTaskTitles(subject.category, subject.name).length;
+}
+
+export type ApplyConceptTaskOptions = {
+  /**
+   * Shared across one synchronous bulk loop; mutate so later subjects see titles added earlier
+   * before React state updates.
+   */
+  sharedPlannerTitles?: Set<string>;
+  /**
+   * When true (bulk/template/fill-all), skip if any task in the planner already has that title.
+   * When false, only skip if this subject already has that title (allows duplicate titles on other
+   * subjects). Prefer the default true so checklist imports stay unique planner-wide.
+   * @default true
+   */
+  dedupeAcrossPlanner?: boolean;
+};
+
+/**
+ * Adds checklist tasks for one subject.
+ *
+ * Default `dedupeAcrossPlanner`: skip titles already used anywhere (bulk fills pass `sharedPlannerTitles`).
+ * Set `dedupeAcrossPlanner: false` only if you intentionally allow the same title on multiple subjects.
+ */
 export function applyConceptTasksForSubject(
   subject: Pick<Subject, "id" | "category" | "name">,
   existingTasks: Task[],
   upsertTask: (
     t: Omit<Task, "id" | "createdAt" | "updatedAt"> & { id?: string }
-  ) => void
+  ) => boolean,
+  options?: ApplyConceptTaskOptions
 ): number {
-  const titles = getConceptTasksForSubject(subject.category, subject.name);
+  const dedupeAcrossPlanner = options?.dedupeAcrossPlanner ?? true;
+  const sharedPlannerTitles = options?.sharedPlannerTitles;
+
+  const titles = getDedupedConceptTaskTitles(subject.category, subject.name);
   if (titles.length === 0) return 0;
-  const existing = new Set(
+
+  const plannerTaken =
+    dedupeAcrossPlanner
+      ? (sharedPlannerTitles ??
+        new Set(existingTasks.map((t) => normalizeSubjectName(t.title))))
+      : null;
+
+  const existingForSubject = new Set(
     existingTasks
       .filter((t) => t.subjectId === subject.id)
       .map((t) => normalizeSubjectName(t.title))
   );
+
   let added = 0;
   for (const title of titles) {
     const k = normalizeSubjectName(title);
-    if (existing.has(k)) continue;
-    existing.add(k);
-    upsertTask({
+    if (existingForSubject.has(k)) continue;
+    if (plannerTaken?.has(k)) continue;
+    existingForSubject.add(k);
+    plannerTaken?.add(k);
+    const saved = upsertTask({
       title,
       subjectId: subject.id,
       dueDate: null,
@@ -1288,7 +1340,11 @@ export function applyConceptTasksForSubject(
       status: "todo",
       completedAt: null,
     });
-    added++;
+    if (saved) added++;
+    else {
+      existingForSubject.delete(k);
+      plannerTaken?.delete(k);
+    }
   }
   return added;
 }
@@ -1297,12 +1353,14 @@ export function estimateTopicTasksForSubjects(subjects: Subject[]): number {
   return subjects.reduce((n, s) => n + countConceptTasksForSubject(s), 0);
 }
 
-/** Upper bound on tasks if every name became a subject with its topic pack (no deduping). */
+/** Upper bound on tasks if every name became a subject with its topic pack (deduped per pack). */
 export function estimateConceptTasksForSubjectNames(
   category: SubjectCategory,
   names: readonly string[]
 ): number {
   let n = 0;
-  for (const name of names) n += getConceptTasksForSubject(category, name).length;
+  for (const name of names) {
+    n += getDedupedConceptTaskTitles(category, name).length;
+  }
   return n;
 }
