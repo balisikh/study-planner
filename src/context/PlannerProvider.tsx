@@ -23,6 +23,7 @@ import {
 } from "@/lib/types";
 import { buildDemoPlannerState, defaultState, loadState, saveState } from "@/lib/storage";
 import { normalizeSubjectName } from "@/lib/subjectTemplates";
+import { mergeDuplicateTasksFields } from "@/lib/mergeDuplicateTasks";
 import { findConflictingTaskTitle } from "@/lib/taskTitleDedupe";
 
 function nowISO(): string {
@@ -48,6 +49,13 @@ type PlannerContextValue = {
     t: Omit<Task, "id" | "createdAt" | "updatedAt"> & { id?: string }
   ) => boolean;
   deleteTask: (id: string) => void;
+  /** Merge duplicate rows into keepers, reassign sessions, remove merged-from tasks (single transaction). */
+  mergeDuplicateTaskGroups: (
+    plans: readonly {
+      keeperId: string;
+      mergeFromIds: readonly string[];
+    }[]
+  ) => void;
   upsertAvailability: (
     a: Omit<AvailabilityRule, "id"> & { id?: string }
   ) => void;
@@ -223,6 +231,69 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
     [set]
   );
 
+  const mergeDuplicateTaskGroups = useCallback(
+    (
+      plans: readonly {
+        keeperId: string;
+        mergeFromIds: readonly string[];
+      }[]
+    ) => {
+      const ts = nowISO();
+      set((p) => {
+        const duplicateToKeeper = new Map<string, string>();
+        const removeIds = new Set<string>();
+        const keeperRows = new Map<string, Task>();
+
+        for (const plan of plans) {
+          const keeper = p.tasks.find((t) => t.id === plan.keeperId);
+          if (!keeper) continue;
+          const others = plan.mergeFromIds
+            .filter((id) => id !== plan.keeperId)
+            .map((id) => p.tasks.find((t) => t.id === id))
+            .filter((t): t is Task => Boolean(t));
+          if (others.length === 0) continue;
+
+          const mergedFields = mergeDuplicateTasksFields(keeper, others);
+          keeperRows.set(plan.keeperId, {
+            ...keeper,
+            ...mergedFields,
+            id: plan.keeperId,
+            createdAt: keeper.createdAt,
+            updatedAt: ts,
+            completedAt:
+              mergedFields.status === "done"
+                ? mergedFields.completedAt ?? keeper.completedAt ?? ts
+                : null,
+          });
+
+          for (const id of plan.mergeFromIds) {
+            if (id !== plan.keeperId) {
+              removeIds.add(id);
+              duplicateToKeeper.set(id, plan.keeperId);
+            }
+          }
+        }
+
+        if (removeIds.size === 0 && keeperRows.size === 0) return p;
+
+        const tasks = p.tasks
+          .filter((t) => !removeIds.has(t.id))
+          .map((t) => keeperRows.get(t.id) ?? t);
+
+        const sessions = p.sessions.map((s) => {
+          if (!s.taskId) return s;
+          const onto = duplicateToKeeper.get(s.taskId);
+          return onto
+            ? { ...s, taskId: onto, updatedAt: ts }
+            : s;
+        });
+
+        return { ...p, tasks, sessions };
+      });
+    },
+    [set]
+  );
+
   const upsertAvailability = useCallback(
     (input: Omit<AvailabilityRule, "id"> & { id?: string }) => {
       set((p) => {
@@ -351,6 +422,7 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
       mergeSubjects,
       upsertTask,
       deleteTask,
+      mergeDuplicateTaskGroups,
       upsertAvailability,
       deleteAvailability,
       upsertSession,
@@ -367,6 +439,7 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
       mergeSubjects,
       upsertTask,
       deleteTask,
+      mergeDuplicateTaskGroups,
       upsertAvailability,
       deleteAvailability,
       upsertSession,

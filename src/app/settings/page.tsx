@@ -22,7 +22,7 @@ export default function SettingsPage() {
     tasks,
     subjects,
     sessions,
-    deleteTask,
+    mergeDuplicateTaskGroups,
   } = usePlanner();
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -76,25 +76,33 @@ export default function SettingsPage() {
   }
 
   function applyTaskDedupe() {
-    const idsToRemove: string[] = [];
-    for (const g of duplicateGroups) {
-      const keeper = keeperIdForGroup(g);
-      if (!keeper) continue;
-      for (const t of g.tasks) {
-        if (t.id !== keeper) idsToRemove.push(t.id);
-      }
-    }
-    if (idsToRemove.length === 0) return;
+    const plans = duplicateGroups
+      .map((g) => {
+        const keeperId = keeperIdForGroup(g);
+        const mergeFromIds = g.tasks
+          .map((t) => t.id)
+          .filter((id) => id !== keeperId);
+        return { keeperId, mergeFromIds };
+      })
+      .filter((p) => p.mergeFromIds.length > 0);
+
+    const removedCount = plans.reduce((n, p) => n + p.mergeFromIds.length, 0);
+    if (removedCount === 0) return;
+
     const msg = [
-      `Remove ${idsToRemove.length} duplicate task(s)?`,
-      "The tasks you did not select will be deleted.",
-      "Schedule sessions that pointed at a removed task will become unlinked (optional task).",
+      `Merge and remove ${removedCount} duplicate task(s)?`,
+      "For each clash, the row you selected keeps its title and creation date.",
+      "Notes from every copy are merged (unique blocks, oldest-first).",
+      "Due date becomes the earliest; priority the strongest; estimate the largest value among copies;",
+      "status becomes the most progressed (done beats doing beats todo).",
+      "Sessions linked to a removed copy will point at the kept task instead.",
       "Download a backup first if you are unsure.",
     ].join(" ");
     if (!window.confirm(msg)) return;
-    for (const id of idsToRemove) deleteTask(id);
+
+    mergeDuplicateTaskGroups(plans);
     setDedupeFeedback(
-      `Removed ${idsToRemove.length} duplicate task(s). Kept one task per title.`
+      `Merged into ${plans.length} keeper task(s) and removed ${removedCount} duplicate(s).`
     );
   }
 
@@ -205,8 +213,10 @@ export default function SettingsPage() {
         <p className="text-sm text-zinc-600 dark:text-zinc-300">
           Older data might contain tasks that share the same title when spacing or letter case are
           ignored. New saves block duplicates; use this tool to clean up what is already stored.
-          For each clash, choose the task row to <span className="font-medium">keep</span>; the
-          others will be deleted when you confirm.
+          For each clash, choose the task row to <span className="font-medium">keep</span>. On
+          confirm, fields from the other copies are <span className="font-medium">merged</span> into
+          that row (notes, due date, priority, estimate, status, subject if missing), scheduled
+          sessions are reassigned to the keeper, then duplicates are removed.
         </p>
         {dedupeFeedback && (
           <p className="text-sm text-emerald-700 dark:text-emerald-400" role="status" aria-live="polite">
@@ -277,7 +287,7 @@ export default function SettingsPage() {
                 className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
                 onClick={applyTaskDedupe}
               >
-                Delete non-selected duplicates
+                Merge & remove duplicates
               </button>
             </div>
           </>
