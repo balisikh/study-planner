@@ -1,28 +1,22 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePlanner } from "@/context/PlannerProvider";
 import type { Subject, SubjectCategory } from "@/lib/types";
 import {
   CUSTOM_ESSENTIAL_SUBJECTS,
   QUALIFICATION_SUBJECT_TEMPLATES,
   type QualificationTemplateId,
-  getSuggestedSubjectColor,
+  getSuggestedSubjectColorOrPalette,
   normalizeSubjectName,
 } from "@/lib/subjectTemplates";
-import {
-  applyConceptTasksForSubject,
-  estimateConceptTasksForSubjectNames,
-  getConceptTasksForSubject,
-} from "@/lib/subjectConceptTasks";
-import { DEFAULT_COLORS } from "@/lib/types";
 
 function emptyForm(category: SubjectCategory): Pick<Subject, "name" | "color" | "category"> {
   return { name: "", color: "#6366f1", category };
 }
 
 export default function SubjectsPage() {
-  const { subjects, tasks, upsertSubject, upsertTask, deleteSubject } = usePlanner();
+  const { subjects, upsertSubject, deleteSubject } = usePlanner();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<SubjectCategory>("gcse");
   const [form, setForm] = useState(() => emptyForm("gcse"));
@@ -31,6 +25,17 @@ export default function SubjectsPage() {
   const formRef = useRef<HTMLFormElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
   const [moveTo, setMoveTo] = useState<Record<string, SubjectCategory>>({});
+
+  const [feedback, setFeedback] = useState<{
+    tone: "success" | "info";
+    text: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!feedback) return;
+    const id = window.setTimeout(() => setFeedback(null), 6500);
+    return () => window.clearTimeout(id);
+  }, [feedback]);
 
   const categoryLabels: Record<SubjectCategory, string> = {
     gcse: "GCSE",
@@ -78,114 +83,59 @@ export default function SubjectsPage() {
     cancel();
   }
 
-  function addSubjectsFromList(
-    list: string[],
-    category: SubjectCategory
-  ): { id: string; name: string }[] {
+  function addSubjectsFromList(list: string[], category: SubjectCategory): number {
     const existing = new Set(subjects.map((s) => normalizeSubjectName(s.name)));
-    const created: { id: string; name: string }[] = [];
-    let bump = 0;
+    let added = 0;
     for (const name of list) {
       const norm = normalizeSubjectName(name);
       if (existing.has(norm)) continue;
-      const suggested = getSuggestedSubjectColor(name);
-      const color =
-        suggested ??
-        DEFAULT_COLORS[(subjects.length + bump) % DEFAULT_COLORS.length];
-      bump++;
-      const id = upsertSubject({ name, color, category });
-      if (id) {
-        existing.add(norm);
-        created.push({ id, name });
-      }
+      const color = getSuggestedSubjectColorOrPalette(name);
+      upsertSubject({ name, color, category });
+      existing.add(norm);
+      added++;
     }
     setActiveCategory(category);
-    return created;
+    return added;
   }
 
   function addQualificationTemplate() {
+    setFeedback(null);
     const list = QUALIFICATION_SUBJECT_TEMPLATES[templateId].subjects;
-    addSubjectsFromList(list, templateId as SubjectCategory);
-  }
-
-  function addQualificationTemplateWithTopics() {
-    const cat = templateId as SubjectCategory;
-    const list = QUALIFICATION_SUBJECT_TEMPLATES[templateId].subjects;
-    const estTasks = estimateConceptTasksForSubjectNames(cat, list);
-    if (
-      !confirm(
-        `Add ${list.length} subjects and up to ${estTasks} topic tasks (subjects you already have are skipped; duplicate task titles under the same subject are skipped). Continue?`
-      )
-    ) {
-      return;
-    }
-    const created = addSubjectsFromList(list, cat);
-    let tasksAdded = 0;
-    for (const { id, name } of created) {
-      tasksAdded += applyConceptTasksForSubject(
-        { id, name, category: cat },
-        tasks,
-        upsertTask
-      );
-    }
-    alert(
-      `Added ${created.length} new subject(s) and ${tasksAdded} new task(s). (Up to ${estTasks} tasks if every row were new.)`
-    );
-  }
-
-  function addTopicTasksForSubject(s: Subject) {
-    const n = getConceptTasksForSubject(s.category, s.name).length;
-    if (n === 0) {
-      alert("No built-in topic checklist for this subject.");
-      return;
-    }
-    const added = applyConceptTasksForSubject(s, tasks, upsertTask);
-    if (added === 0) {
-      alert("All checklist tasks already exist for this subject.");
+    const n = addSubjectsFromList(list, templateId as SubjectCategory);
+    if (n > 0) {
+      setFeedback({ tone: "success", text: `Added ${n} subject(s).` });
     } else {
-      alert(`Added ${added} task(s) (${n} topics in checklist).`);
+      setFeedback({
+        tone: "info",
+        text: "No new subjects — those titles were already in your list.",
+      });
     }
-  }
-
-  function addTopicTasksForAllCustom() {
-    const list = subjects.filter((s) => s.category === "custom");
-    const est = list.reduce(
-      (n, s) => n + getConceptTasksForSubject(s.category, s.name).length,
-      0
-    );
-    if (
-      !confirm(
-        `Add missing topic tasks for every Custom subject (${list.length} subjects, up to ${est} tasks total if empty). Continue?`
-      )
-    ) {
-      return;
-    }
-    let tasksAdded = 0;
-    for (const s of list) {
-      tasksAdded += applyConceptTasksForSubject(s, tasks, upsertTask);
-    }
-    alert(`Added ${tasksAdded} task(s) across Custom subjects.`);
   }
 
   function applySuggestedColorsForActiveCategory() {
     const list = subjects.filter((s) => s.category === activeCategory);
     let changed = 0;
     for (const s of list) {
-      const suggested = getSuggestedSubjectColor(s.name);
-      if (!suggested) continue;
-      if (s.color.toLowerCase() === suggested.toLowerCase()) continue;
+      const target = getSuggestedSubjectColorOrPalette(s.name);
+      if (s.color.toLowerCase() === target.toLowerCase()) continue;
       upsertSubject({
         id: s.id,
         name: s.name,
-        color: suggested,
+        color: target,
         category: s.category,
       });
       changed++;
     }
     if (changed > 0) {
-      alert(`Updated colours for ${changed} subject(s) in ${categoryLabels[activeCategory]}.`);
+      setFeedback({
+        tone: "success",
+        text: `Updated colours for ${changed} subject(s) in ${categoryLabels[activeCategory]}.`,
+      });
     } else {
-      alert(`No colour updates needed for ${categoryLabels[activeCategory]}.`);
+      setFeedback({
+        tone: "info",
+        text: `Every subject in ${categoryLabels[activeCategory]} already matches its suggested colour.`,
+      });
     }
   }
 
@@ -220,6 +170,19 @@ export default function SubjectsPage() {
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
           Subjects help you group tasks and color-code sessions.
         </p>
+        {feedback && (
+          <p
+            className={
+              feedback.tone === "success"
+                ? "mt-3 text-sm text-emerald-700 dark:text-emerald-400"
+                : "mt-3 text-sm text-zinc-600 dark:text-zinc-400"
+            }
+            role="status"
+            aria-live="polite"
+          >
+            {feedback.text}
+          </p>
+        )}
       </div>
 
       <section
@@ -288,26 +251,19 @@ export default function SubjectsPage() {
             </button>
             <button
               type="button"
-              className="rounded-lg bg-zinc-800 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-white"
-              onClick={addQualificationTemplateWithTopics}
-            >
-              Add subjects + topic tasks
-            </button>
-            <button
-              type="button"
               className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
-              onClick={applySuggestedColorsForActiveCategory}
+              onClick={() => {
+                setFeedback(null);
+                applySuggestedColorsForActiveCategory();
+              }}
             >
               Apply colours
             </button>
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Topic tasks are specification-style strands (not every exam-board code).
-            Use{" "}
-            <span className="font-medium text-zinc-600 dark:text-zinc-300">
-              Topics
-            </span>{" "}
-            on a row to add checklist tasks for one subject only.
+            Add what you study as subjects, then create tasks on the Tasks page and schedule them.
+            Apply colours uses subject hints where we have them, otherwise a stable colour from the
+            title.
           </p>
         </section>
       )}
@@ -318,52 +274,37 @@ export default function SubjectsPage() {
             Custom starters
           </h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Short courses, UCAS prep, multi-subject revision, and driving — each has a
-            matching topic checklist.
+            Short courses, UCAS prep, multi-subject revision, and driving — add them as subjects,
+            then add your own tasks.
           </p>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <button
               type="button"
               className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
-              onClick={() => addSubjectsFromList(CUSTOM_ESSENTIAL_SUBJECTS, "custom")}
+              onClick={() => {
+                setFeedback(null);
+                const n = addSubjectsFromList(CUSTOM_ESSENTIAL_SUBJECTS, "custom");
+                if (n > 0) {
+                  setFeedback({ tone: "success", text: `Added ${n} starter subject(s).` });
+                } else {
+                  setFeedback({
+                    tone: "info",
+                    text: "No new starters — those titles were already in your list.",
+                  });
+                }
+              }}
             >
               Add starter subjects
             </button>
             <button
               type="button"
-              className="rounded-lg bg-zinc-800 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-white"
+              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
               onClick={() => {
-                const list = CUSTOM_ESSENTIAL_SUBJECTS;
-                const estTasks = estimateConceptTasksForSubjectNames("custom", list);
-                if (
-                  !confirm(
-                    `Add ${list.length} starter subjects and up to ${estTasks} topic tasks (skipping duplicates). Continue?`
-                  )
-                ) {
-                  return;
-                }
-                const created = addSubjectsFromList(list, "custom");
-                let tasksAdded = 0;
-                for (const { id, name } of created) {
-                  tasksAdded += applyConceptTasksForSubject(
-                    { id, name, category: "custom" },
-                    tasks,
-                    upsertTask
-                  );
-                }
-                alert(
-                  `Added ${created.length} subject(s) and ${tasksAdded} task(s).`
-                );
+                setFeedback(null);
+                applySuggestedColorsForActiveCategory();
               }}
             >
-              Add starters + topic tasks
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
-              onClick={addTopicTasksForAllCustom}
-            >
-              Fill topics for all Custom subjects
+              Apply colours
             </button>
           </div>
         </section>
@@ -507,13 +448,6 @@ export default function SubjectsPage() {
                     </button>
                   </>
                 )}
-                <button
-                  type="button"
-                  className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
-                  onClick={() => addTopicTasksForSubject(s)}
-                >
-                  Topics
-                </button>
                 <button
                   type="button"
                   onClick={() => startEdit(s)}

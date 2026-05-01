@@ -5,6 +5,7 @@ import {
   gcseExamBoardQualifications,
   ukHigherEducationQualifications,
 } from "./examBoardQualifications";
+import { DEFAULT_COLORS } from "./types";
 
 /** GCSE, A Level, BTEC, traineeship & uni bulk-add templates (dropdown only). */
 export type QualificationTemplateId =
@@ -167,3 +168,18 @@ export function getSuggestedSubjectColor(name: string): string | null {
   return null;
 }
 
+/** Stable accent when no semantic colour exists (same stem ⇒ same colour). */
+export function paletteColorFromSubjectStem(subjectName: string): string {
+  const key =
+    qualificationSubjectStem(subjectName) ?? normalizeSubjectName(subjectName);
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return DEFAULT_COLORS[Math.abs(h) % DEFAULT_COLORS.length];
+}
+
+export function getSuggestedSubjectColorOrPalette(subjectName: string): string {
+  return getSuggestedSubjectColor(subjectName) ?? paletteColorFromSubjectStem(subjectName);
+}

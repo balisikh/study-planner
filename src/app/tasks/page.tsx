@@ -7,10 +7,6 @@ import { formatDisplayDate } from "@/lib/dates";
 import { taskOverdue } from "@/lib/selectors";
 import { todayISO } from "@/lib/dates";
 import { parseTaskHash } from "@/lib/taskNav";
-import {
-  applyConceptTasksForSubject,
-  getConceptTasksForSubject,
-} from "@/lib/subjectConceptTasks";
 
 const priorities: Priority[] = ["low", "medium", "high"];
 const statuses: TaskStatus[] = ["todo", "doing", "done"];
@@ -68,19 +64,6 @@ export default function TasksPage() {
     () => Object.fromEntries(subjects.map((s) => [s.id, s])),
     [subjects]
   );
-
-  const filterSubjectRow = useMemo(() => {
-    if (filterSubject === "all") return null;
-    return subjects.find((s) => s.id === filterSubject) ?? null;
-  }, [filterSubject, subjects]);
-
-  const topicPackCount = useMemo(() => {
-    if (!filterSubjectRow) return 0;
-    return getConceptTasksForSubject(
-      filterSubjectRow.category,
-      filterSubjectRow.name
-    ).length;
-  }, [filterSubjectRow]);
 
   const subjectGroups = useMemo(() => {
     const labels: Record<SubjectCategory, string> = {
@@ -371,39 +354,6 @@ export default function TasksPage() {
           <option value="all">All statuses</option>
         </select>
       </div>
-
-      {filterSubjectRow && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200/80 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/40">
-          <button
-            type="button"
-            disabled={topicPackCount === 0}
-            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={() => {
-              const added = applyConceptTasksForSubject(
-                filterSubjectRow,
-                tasks,
-                upsertTask
-              );
-              if (added === 0) {
-                alert(
-                  topicPackCount === 0
-                    ? "No built-in topic checklist for this subject."
-                    : "All checklist tasks already exist for this subject."
-                );
-              } else {
-                alert(`Added ${added} task(s) from the topic checklist.`);
-              }
-            }}
-          >
-            Add topic checklist for this subject
-          </button>
-          <span className="text-xs text-zinc-600 dark:text-zinc-400">
-            {topicPackCount === 0
-              ? "No matching checklist in the library for this name."
-              : `${topicPackCount} topics — duplicates under this subject are skipped.`}
-          </span>
-        </div>
-      )}
 
       <ul className="divide-y divide-zinc-200 rounded-2xl border border-zinc-200/80 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-950">
         {sorted.length === 0 ? (
