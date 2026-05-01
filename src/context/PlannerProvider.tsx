@@ -34,6 +34,14 @@ function newId(): string {
   return crypto.randomUUID();
 }
 
+export type UpsertTaskOptions = {
+  /**
+   * Used only when inserting checklist rows per subject: allows the same normalized title as a task
+   * on another subject. Manual task saves never pass this — global uniqueness still enforced there.
+   */
+  allowDuplicateNormalizedTitle?: boolean;
+};
+
 type PlannerContextValue = {
   state: PlannerState;
   subjects: Subject[];
@@ -46,7 +54,8 @@ type PlannerContextValue = {
   deleteSubject: (id: string) => void;
   mergeSubjects: (fromId: string, intoId: string) => void;
   upsertTask: (
-    t: Omit<Task, "id" | "createdAt" | "updatedAt"> & { id?: string }
+    t: Omit<Task, "id" | "createdAt" | "updatedAt"> & { id?: string },
+    options?: UpsertTaskOptions
   ) => boolean;
   deleteTask: (id: string) => void;
   /** Merge duplicate rows into keepers, reassign sessions, remove merged-from tasks (single transaction). */
@@ -161,16 +170,21 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
 
   const upsertTask = useCallback(
     (
-      input: Omit<Task, "id" | "createdAt" | "updatedAt"> & { id?: string }
+      input: Omit<Task, "id" | "createdAt" | "updatedAt"> & { id?: string },
+      options?: UpsertTaskOptions
     ): boolean => {
       const ts = nowISO();
       const title = input.title.trim();
       const key = normalizeSubjectName(title);
       if (!key) return false;
 
+      const skipGlobalTitleCheck =
+        Boolean(options?.allowDuplicateNormalizedTitle) && !input.id;
+
       let applied = false;
       set((p) => {
         if (
+          !skipGlobalTitleCheck &&
           findConflictingTaskTitle(p.tasks, title, {
             excludeTaskId: input.id,
           })

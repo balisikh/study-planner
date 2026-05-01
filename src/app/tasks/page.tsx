@@ -254,10 +254,11 @@ export default function TasksPage() {
           Tasks
         </h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Capture work with due dates and priorities. Task titles must be unique across your planner
-          (spacing and letter case are ignored), including when you type them manually or add topic
-          checklists. Open tasks exclude completed ones by default. From Schedule or Dashboard, open a
-          linked session&apos;s task title to jump here.
+          Capture work with due dates and priorities. When you type or edit a task yourself, titles
+          must be unique across your planner (spacing and letter case are ignored). Topic checklists
+          per subject can reuse a title that exists on another subject. Bulk &quot;fill everywhere&quot;
+          still skips titles already used anywhere. Open tasks exclude completed ones by default.
+          From Schedule or Dashboard, open a linked session&apos;s task title to jump here.
         </p>
         {tasksBanner && (
           <p
@@ -521,14 +522,15 @@ export default function TasksPage() {
               const added = applyConceptTasksForSubject(
                 filterSubjectRow,
                 tasks,
-                upsertTask
+                upsertTask,
+                { dedupeAcrossPlanner: false }
               );
               setTasksBanner(
                 added > 0
-                  ? `Added ${added} task(s). Skipped titles already used anywhere in Tasks.`
+                  ? `Added ${added} task(s) on this subject (skipped lines already on this subject).`
                   : topicPackCount === 0
                     ? "No built-in checklist for this subject name."
-                    : "No new tasks — every checklist title already exists in Tasks."
+                    : "No new tasks — every checklist line is already on this subject."
               );
             }}
           >
@@ -537,7 +539,7 @@ export default function TasksPage() {
           <span className="text-xs text-zinc-600 dark:text-zinc-400">
             {topicPackCount === 0
               ? "No matching checklist for this subject."
-              : `${topicPackCount} topics in library — adds missing titles not already in Tasks.`}
+              : `${topicPackCount} topics in library — adds missing lines for this subject (same title on other subjects is ok).`}
           </span>
         </div>
       )}

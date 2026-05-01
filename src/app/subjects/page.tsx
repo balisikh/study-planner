@@ -244,18 +244,19 @@ export default function SubjectsPage() {
     const added = applyConceptTasksForSubject(
       topicChecklistSubject,
       tasks,
-      upsertTask
+      upsertTask,
+      { dedupeAcrossPlanner: false }
     );
     setTopicChecklistSubject(null);
     if (added === 0) {
       setFeedback({
         tone: "info",
-        text: `No new tasks — every checklist title already exists in Tasks (duplicate titles are not added).`,
+        text: `No new tasks — every checklist line is already a task on this subject.`,
       });
     } else {
       setFeedback({
         tone: "success",
-        text: `Added ${added} new task(s). Skipped titles already used anywhere in Tasks.`,
+        text: `Added ${added} new task(s) on this subject (skipped lines already on this subject).`,
       });
     }
   }
@@ -736,7 +737,8 @@ export default function SubjectsPage() {
                 {topicChecklistSubject.name}
               </p>
               <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                ✓ = title already in Tasks (any subject). Those rows are not added again.
+                ✓ = already a task on this subject (not added again). The same title may still exist on
+                another subject — that does not block adding it here.
               </p>
             </div>
             <ul className="max-h-[min(60vh,28rem)] overflow-y-auto px-5 py-3 text-sm">
@@ -745,20 +747,22 @@ export default function SubjectsPage() {
                 topicChecklistSubject.name
               ).map((title) => {
                 const norm = normalizeSubjectName(title);
-                const alreadyInPlanner = tasks.some(
-                  (t) => normalizeSubjectName(t.title) === norm
+                const onThisSubject = tasks.some(
+                  (t) =>
+                    t.subjectId === topicChecklistSubject.id &&
+                    normalizeSubjectName(t.title) === norm
                 );
                 return (
                   <li
                     key={title}
                     className={`flex gap-2 border-b border-zinc-100 py-2 last:border-b-0 dark:border-zinc-800/80 ${
-                      alreadyInPlanner
+                      onThisSubject
                         ? "text-zinc-400 dark:text-zinc-500"
                         : "text-zinc-800 dark:text-zinc-100"
                     }`}
                   >
                     <span className="shrink-0 font-medium tabular-nums" aria-hidden="true">
-                      {alreadyInPlanner ? "✓" : "○"}
+                      {onThisSubject ? "✓" : "○"}
                     </span>
                     <span>{title}</span>
                   </li>

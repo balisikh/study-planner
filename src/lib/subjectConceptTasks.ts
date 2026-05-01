@@ -1284,8 +1284,8 @@ export type ApplyConceptTaskOptions = {
   sharedPlannerTitles?: Set<string>;
   /**
    * When true (bulk/template/fill-all), skip if any task in the planner already has that title.
-   * When false, only skip if this subject already has that title (allows duplicate titles on other
-   * subjects). Prefer the default true so checklist imports stay unique planner-wide.
+   * When false, only skip if this subject already has that title (same title may exist on other
+   * subjects; inserts use `allowDuplicateNormalizedTitle` on `upsertTask`).
    * @default true
    */
   dedupeAcrossPlanner?: boolean;
@@ -1295,13 +1295,14 @@ export type ApplyConceptTaskOptions = {
  * Adds checklist tasks for one subject.
  *
  * Default `dedupeAcrossPlanner`: skip titles already used anywhere (bulk fills pass `sharedPlannerTitles`).
- * Set `dedupeAcrossPlanner: false` only if you intentionally allow the same title on multiple subjects.
+ * Set `dedupeAcrossPlanner: false` for Topics / single-subject checklist buttons so each subject row can get a full pack.
  */
 export function applyConceptTasksForSubject(
   subject: Pick<Subject, "id" | "category" | "name">,
   existingTasks: Task[],
   upsertTask: (
-    t: Omit<Task, "id" | "createdAt" | "updatedAt"> & { id?: string }
+    t: Omit<Task, "id" | "createdAt" | "updatedAt"> & { id?: string },
+    options?: { allowDuplicateNormalizedTitle?: boolean }
   ) => boolean,
   options?: ApplyConceptTaskOptions
 ): number {
@@ -1330,16 +1331,21 @@ export function applyConceptTasksForSubject(
     if (plannerTaken?.has(k)) continue;
     existingForSubject.add(k);
     plannerTaken?.add(k);
-    const saved = upsertTask({
-      title,
-      subjectId: subject.id,
-      dueDate: null,
-      priority: "medium",
-      estimateMinutes: null,
-      notes: "",
-      status: "todo",
-      completedAt: null,
-    });
+    const saved = upsertTask(
+      {
+        title,
+        subjectId: subject.id,
+        dueDate: null,
+        priority: "medium",
+        estimateMinutes: null,
+        notes: "",
+        status: "todo",
+        completedAt: null,
+      },
+      dedupeAcrossPlanner
+        ? undefined
+        : { allowDuplicateNormalizedTitle: true }
+    );
     if (saved) added++;
     else {
       existingForSubject.delete(k);
