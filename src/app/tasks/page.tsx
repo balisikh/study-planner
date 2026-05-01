@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { usePlanner } from "@/context/PlannerProvider";
-import type { Priority, Task, TaskStatus } from "@/lib/types";
+import type { Priority, SubjectCategory, Task, TaskStatus } from "@/lib/types";
 import { formatDisplayDate } from "@/lib/dates";
 import { taskOverdue } from "@/lib/selectors";
 import { todayISO } from "@/lib/dates";
@@ -61,6 +61,30 @@ export default function TasksPage() {
     () => Object.fromEntries(subjects.map((s) => [s.id, s])),
     [subjects]
   );
+
+  const subjectGroups = useMemo(() => {
+    const labels: Record<SubjectCategory, string> = {
+      gcse: "GCSE",
+      alevel: "A Level",
+      btec: "BTEC (L1–L3)",
+      codingTraineeship: "Coding Traineeship",
+      university: "University",
+      custom: "Custom",
+    };
+    const groups: Record<SubjectCategory, typeof subjects> = {
+      gcse: [],
+      alevel: [],
+      btec: [],
+      codingTraineeship: [],
+      university: [],
+      custom: [],
+    };
+    for (const s of subjects) groups[s.category].push(s);
+    for (const k of Object.keys(groups) as SubjectCategory[]) {
+      groups[k].sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return { labels, groups };
+  }, [subjects]);
 
   function startEdit(t: Task) {
     setEditingId(t.id);
@@ -133,11 +157,21 @@ export default function TasksPage() {
               }
             >
               <option value="">— None —</option>
-              {subjects.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
+              {(Object.keys(subjectGroups.groups) as SubjectCategory[]).map(
+                (cat) => {
+                  const list = subjectGroups.groups[cat];
+                  if (list.length === 0) return null;
+                  return (
+                    <optgroup key={cat} label={subjectGroups.labels[cat]}>
+                      {list.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  );
+                }
+              )}
             </select>
           </label>
           <label className="block">

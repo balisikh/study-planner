@@ -22,6 +22,7 @@ import {
   type TaskStatus,
 } from "@/lib/types";
 import { defaultState, loadState, saveState } from "@/lib/storage";
+import { normalizeSubjectName } from "@/lib/subjectTemplates";
 
 function nowISO(): string {
   return new Date().toISOString();
@@ -41,6 +42,7 @@ type PlannerContextValue = {
     s: Omit<Subject, "id" | "createdAt" | "updatedAt"> & { id?: string }
   ) => void;
   deleteSubject: (id: string) => void;
+  mergeSubjects: (fromId: string, intoId: string) => void;
   upsertTask: (t: Omit<Task, "id" | "createdAt" | "updatedAt"> & { id?: string }) => void;
   deleteTask: (id: string) => void;
   upsertAvailability: (
@@ -74,6 +76,14 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
       const t = nowISO();
       set((p) => {
         if (input.id) {
+          const desired = normalizeSubjectName(input.name);
+          const conflict = p.subjects.find(
+            (s) => s.id !== input.id && normalizeSubjectName(s.name) === desired
+          );
+          if (conflict) {
+            // Global unique subject names enforced: ignore conflicting update.
+            return p;
+          }
           return {
             ...p,
             subjects: p.subjects.map((s) =>
@@ -82,6 +92,12 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
                 : s
             ),
           };
+        }
+        const desired = normalizeSubjectName(input.name);
+        const exists = p.subjects.some((s) => normalizeSubjectName(s.name) === desired);
+        if (exists) {
+          // Global unique subject names enforced: ignore duplicate create.
+          return p;
         }
         const color =
           input.color ||
@@ -108,6 +124,19 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
         subjects: p.subjects.filter((s) => s.id !== id),
         tasks: p.tasks.map((t) =>
           t.subjectId === id ? { ...t, subjectId: null, updatedAt: nowISO() } : t
+        ),
+      }));
+    },
+    [set]
+  );
+
+  const mergeSubjects = useCallback(
+    (fromId: string, intoId: string) => {
+      if (fromId === intoId) return;
+      set((p) => ({
+        ...p,
+        tasks: p.tasks.map((t) =>
+          t.subjectId === fromId ? { ...t, subjectId: intoId, updatedAt: nowISO() } : t
         ),
       }));
     },
@@ -271,6 +300,7 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
       sessions: state.sessions,
       upsertSubject,
       deleteSubject,
+      mergeSubjects,
       upsertTask,
       deleteTask,
       upsertAvailability,
@@ -285,6 +315,7 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
       state,
       upsertSubject,
       deleteSubject,
+      mergeSubjects,
       upsertTask,
       deleteTask,
       upsertAvailability,

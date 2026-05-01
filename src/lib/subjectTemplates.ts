@@ -127,7 +127,6 @@ export const SUBJECT_TEMPLATES: Record<
       "Business",
       "Accounting",
       "Law",
-      "Politics",
       "Religious Studies",
       "Philosophy",
       "Classical Civilisation",
@@ -255,6 +254,8 @@ export const SUBJECT_TEMPLATES: Record<
     ],
   },
 };
+
+export const CUSTOM_ESSENTIAL_SUBJECTS = SUBJECT_TEMPLATES.custom.subjects;
 
 // Consistent colours for common subjects (template adds).
 // If a subject isn't mapped, the UI will fall back to a rotating palette.

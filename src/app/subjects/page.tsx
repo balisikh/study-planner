@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { usePlanner } from "@/context/PlannerProvider";
 import type { Subject, SubjectCategory } from "@/lib/types";
 import {
+  CUSTOM_ESSENTIAL_SUBJECTS,
   SUBJECT_TEMPLATES,
   type SubjectTemplateId,
   getSuggestedSubjectColor,
@@ -16,7 +17,7 @@ function emptyForm(category: SubjectCategory): Pick<Subject, "name" | "color" | 
 }
 
 export default function SubjectsPage() {
-  const { subjects, upsertSubject, deleteSubject } = usePlanner();
+  const { subjects, upsertSubject, deleteSubject, mergeSubjects } = usePlanner();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<SubjectCategory>("gcse");
   const [form, setForm] = useState(() => emptyForm("gcse"));
@@ -77,7 +78,6 @@ export default function SubjectsPage() {
     const category = templateId as unknown as SubjectCategory;
     const existing = new Set(
       subjects
-        .filter((s) => s.category === category)
         .map((s) => normalizeSubjectName(s.name))
     );
     let added = 0;
@@ -119,12 +119,140 @@ export default function SubjectsPage() {
   function moveSubject(id: string, to: SubjectCategory) {
     const s = subjects.find((x) => x.id === id);
     if (!s) return;
+    const targetConflict = subjects.find(
+      (x) =>
+        x.id !== s.id &&
+        normalizeSubjectName(x.name) === normalizeSubjectName(s.name)
+    );
+    if (targetConflict) {
+      alert(
+        `Cannot move: “${s.name}” already exists elsewhere. With global unique subjects, move would create a duplicate.`
+      );
+      return;
+    }
     upsertSubject({ id: s.id, name: s.name, color: s.color, category: to });
     setMoveTo((p) => {
       const next = { ...p };
       delete next[id];
       return next;
     });
+  }
+
+  function cleanCustomKeepEssentials() {
+    const essentials = new Set(CUSTOM_ESSENTIAL_SUBJECTS.map(normalizeSubjectName));
+    const customSubjects = subjects.filter((s) => s.category === "custom");
+    const toDelete = customSubjects.filter(
+      (s) => !essentials.has(normalizeSubjectName(s.name))
+    );
+    if (toDelete.length === 0) {
+      alert("Custom already only contains the essentials.");
+      return;
+    }
+    if (
+      !confirm(
+        `Remove ${toDelete.length} subject(s) from Custom and keep only short courses + UCAS prep + Exam revision + Driving theory?\\n\\nThis can unassign tasks linked to deleted subjects.`
+      )
+    )
+      return;
+    for (const s of toDelete) deleteSubject(s.id);
+  }
+
+  function dedupeCategoryByName(category: SubjectCategory) {
+    const list = subjects.filter((s) => s.category === category);
+    const byName = new Map<string, Subject[]>();
+    for (const s of list) {
+      const k = normalizeSubjectName(s.name);
+      const arr = byName.get(k) ?? [];
+      arr.push(s);
+      byName.set(k, arr);
+    }
+    const duplicates = Array.from(byName.values()).filter((arr) => arr.length > 1);
+    if (duplicates.length === 0) {
+      alert(`No duplicates found in ${categoryLabels[category]}.`);
+      return;
+    }
+    const totalToRemove = duplicates.reduce((sum, arr) => sum + (arr.length - 1), 0);
+    if (
+      !confirm(
+        `Merge and remove ${totalToRemove} duplicate subject(s) in ${categoryLabels[category]}?\\n\\nTasks will be re-linked to the kept subject.`
+      )
+    )
+      return;
+    for (const group of duplicates) {
+      const kept = group[0];
+      for (const extra of group.slice(1)) {
+        mergeSubjects(extra.id, kept.id);
+        deleteSubject(extra.id);
+      }
+    }
+  }
+
+  function dedupeAllSubjectsGlobal() {
+    const byName = new Map<string, Subject[]>();
+    for (const s of subjects) {
+      const k = normalizeSubjectName(s.name);
+      const arr = byName.get(k) ?? [];
+      arr.push(s);
+      byName.set(k, arr);
+    }
+    const duplicates = Array.from(byName.values()).filter((arr) => arr.length > 1);
+    if (duplicates.length === 0) {
+      alert("No global duplicates found.");
+      return;
+    }
+    const totalToRemove = duplicates.reduce((sum, arr) => sum + (arr.length - 1), 0);
+    if (
+      !confirm(
+        `Merge and remove ${totalToRemove} duplicate subject(s) across the whole app?\\n\\nTasks will be re-linked to the kept subject.`
+      )
+    )
+      return;
+
+    function rank(s: Subject): number {
+      // Prefer non-custom, then earlier creation.
+      const catScore = s.category === "custom" ? 1 : 0;
+      return catScore;
+    }
+
+    for (const group of duplicates) {
+      const sorted = [...group].sort((a, b) => {
+        const r = rank(a) - rank(b);
+        if (r !== 0) return r;
+        return a.createdAt.localeCompare(b.createdAt);
+      });
+      const kept = sorted[0];
+      for (const extra of sorted.slice(1)) {
+        mergeSubjects(extra.id, kept.id);
+        deleteSubject(extra.id);
+      }
+    }
+  }
+
+  function removeCustomDuplicatesAgainstOtherCategories() {
+    const others = subjects.filter((s) => s.category !== "custom");
+    const otherByName = new Map<string, Subject>();
+    for (const s of others) {
+      const k = normalizeSubjectName(s.name);
+      if (!otherByName.has(k)) otherByName.set(k, s);
+    }
+    const custom = subjects.filter((s) => s.category === "custom");
+    const dupes = custom.filter((s) => otherByName.has(normalizeSubjectName(s.name)));
+    if (dupes.length === 0) {
+      alert("No duplicates found between Custom and other categories.");
+      return;
+    }
+    if (
+      !confirm(
+        `Remove ${dupes.length} duplicate subject(s) from Custom that already exist in other categories?\\n\\nTasks will be re-linked to the non-Custom subject.`
+      )
+    )
+      return;
+    for (const s of dupes) {
+      const into = otherByName.get(normalizeSubjectName(s.name));
+      if (!into) continue;
+      mergeSubjects(s.id, into.id);
+      deleteSubject(s.id);
+    }
   }
 
   return (
@@ -193,6 +321,38 @@ export default function SubjectsPage() {
           >
             Apply suggested colours
           </button>
+          {activeCategory === "custom" && (
+            <>
+              <button
+                type="button"
+                className="rounded-lg px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                onClick={cleanCustomKeepEssentials}
+              >
+                Clean Custom (keep essentials)
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
+                onClick={removeCustomDuplicatesAgainstOtherCategories}
+              >
+                Remove Custom duplicates
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
+                onClick={() => dedupeCategoryByName("custom")}
+              >
+                Dedupe Custom
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
+                onClick={dedupeAllSubjectsGlobal}
+              >
+                Dedupe all (global)
+              </button>
+            </>
+          )}
           <p className="text-xs text-zinc-500">
             Duplicates are skipped (by name).
           </p>
