@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useMemo, useRef, useState } from "react";
 import { usePlanner } from "@/context/PlannerProvider";
+import { hrefTask } from "@/lib/taskNav";
 import {
   addDaysISO,
   formatDisplayDate,
@@ -34,6 +36,8 @@ export default function SchedulePage() {
   const [formEnd, setFormEnd] = useState("10:00");
   const [formStatus, setFormStatus] = useState<SessionStatus>("planned");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const sessionFormRef = useRef<HTMLFormElement>(null);
+  const formDateInputRef = useRef<HTMLInputElement>(null);
 
   const subjectMap = useMemo(
     () => Object.fromEntries(subjects.map((s) => [s.id, s])),
@@ -95,13 +99,15 @@ export default function SchedulePage() {
             Schedule
           </h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Plan study blocks by week. Link a task or leave unlinked.
+            Plan study blocks by week. Link a task or leave unlinked. Plan this day jumps to the session form
+            above and sets that date. Click a linked task title to open that task on the Tasks page.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" role="group" aria-label="Week navigation">
           <button
             type="button"
             className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
+            aria-label="Previous week"
             onClick={() => setWeekStart((w) => addDaysISO(w, -7))}
           >
             ← Prev
@@ -109,6 +115,7 @@ export default function SchedulePage() {
           <button
             type="button"
             className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
+            aria-label="Jump to this week"
             onClick={() => setWeekStart(startOfWeekISO(today))}
           >
             This week
@@ -116,6 +123,7 @@ export default function SchedulePage() {
           <button
             type="button"
             className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
+            aria-label="Next week"
             onClick={() => setWeekStart((w) => addDaysISO(w, 7))}
           >
             Next →
@@ -124,16 +132,22 @@ export default function SchedulePage() {
       </div>
 
       <form
+        ref={sessionFormRef}
         onSubmit={submit}
-        className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 space-y-4"
+        className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 space-y-4 scroll-mt-20"
+        aria-labelledby="schedule-session-form-heading"
       >
-        <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+        <h2
+          id="schedule-session-form-heading"
+          className="text-sm font-medium text-zinc-500 dark:text-zinc-400"
+        >
           {editingId ? "Edit session" : "New session"}
         </h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <label className="block">
             <span className="text-xs font-medium text-zinc-500">Date</span>
             <input
+              ref={formDateInputRef}
               type="date"
               required
               className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
@@ -238,13 +252,24 @@ export default function SchedulePage() {
                 </div>
                 <button
                   type="button"
-                  className="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                  className="rounded-md px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-100 dark:text-indigo-400 dark:hover:bg-indigo-950/50"
+                  aria-label={`Plan a session on ${formatDisplayDate(d)} using the form above`}
                   onClick={() => {
                     setFormDate(d);
                     setEditingId(null);
+                    setFormTaskId("");
+                    requestAnimationFrame(() => {
+                      sessionFormRef.current?.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start",
+                      });
+                      window.setTimeout(() => {
+                        formDateInputRef.current?.focus();
+                      }, 350);
+                    });
                   }}
                 >
-                  Use in form
+                  Plan this day
                 </button>
               </div>
               <ul className="mt-3 space-y-2">
@@ -276,7 +301,16 @@ export default function SchedulePage() {
                               />
                             )}
                             <span className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
-                              {task?.title ?? "Unlinked"}
+                              {task ? (
+                                <Link
+                                  href={hrefTask(task.id)}
+                                  className="text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400"
+                                >
+                                  {task.title}
+                                </Link>
+                              ) : (
+                                "Unlinked"
+                              )}
                             </span>
                           </span>
                           <span className="ml-1 text-xs capitalize text-zinc-500">

@@ -15,6 +15,7 @@ import {
   upcomingDeadlines,
 } from "@/lib/selectors";
 import Link from "next/link";
+import { hrefTask } from "@/lib/taskNav";
 
 export default function DashboardPage() {
   const { subjects, tasks, sessions } = usePlanner();
@@ -73,10 +74,20 @@ export default function DashboardPage() {
                         <span
                           className="h-2 w-2 shrink-0 rounded-full"
                           style={{ backgroundColor: sub.color }}
+                          aria-hidden="true"
                         />
                       )}
                       <span className="truncate">
-                        {task?.title ?? "Unlinked session"}
+                        {task ? (
+                          <Link
+                            href={hrefTask(task.id)}
+                            className="text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400"
+                          >
+                            {task.title}
+                          </Link>
+                        ) : (
+                          "Unlinked session"
+                        )}
                       </span>
                     </span>
                     <span className="shrink-0 text-zinc-500 tabular-nums">
@@ -108,6 +119,7 @@ export default function DashboardPage() {
                       <span
                         className="h-2 w-2 shrink-0 rounded-full"
                         style={{ backgroundColor: sub.color }}
+                        aria-hidden="true"
                       />
                     )}
                     <span className="truncate flex-1">{t.title}</span>
@@ -147,6 +159,7 @@ export default function DashboardPage() {
                     <span
                       className="h-2 w-2 shrink-0 rounded-full"
                       style={{ backgroundColor: sub.color }}
+                      aria-hidden="true"
                     />
                   )}
                   <span className="flex-1 truncate font-medium text-zinc-900 dark:text-zinc-100">

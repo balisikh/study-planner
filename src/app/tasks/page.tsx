@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePlanner } from "@/context/PlannerProvider";
 import type { Priority, SubjectCategory, Task, TaskStatus } from "@/lib/types";
 import { formatDisplayDate } from "@/lib/dates";
 import { taskOverdue } from "@/lib/selectors";
 import { todayISO } from "@/lib/dates";
+import { parseTaskHash } from "@/lib/taskNav";
 
 const priorities: Priority[] = ["low", "medium", "high"];
 const statuses: TaskStatus[] = ["todo", "doing", "done"];
@@ -35,6 +36,8 @@ export default function TasksPage() {
   const [filterStatus, setFilterStatus] = useState<string>("open");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm());
+  const [pulseTaskId, setPulseTaskId] = useState<string | null>(null);
+  const appliedTaskHashRef = useRef<string>("");
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
@@ -86,6 +89,56 @@ export default function TasksPage() {
     return { labels, groups };
   }, [subjects]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const h = window.location.hash;
+    const id = parseTaskHash(h);
+    if (!id || !tasks.some((t) => t.id === id)) return;
+    if (appliedTaskHashRef.current === h) return;
+    appliedTaskHashRef.current = h;
+    setFilterSubject("all");
+    setFilterStatus("all");
+  }, [tasks]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const id = parseTaskHash(window.location.hash);
+    if (!id || !sorted.some((t) => t.id === id)) return;
+    const el = document.getElementById(`task-${id}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    try {
+      el.focus({ preventScroll: true });
+    } catch {
+      /* ignore */
+    }
+    setPulseTaskId(id);
+    const tid = window.setTimeout(() => setPulseTaskId(null), 2800);
+    return () => window.clearTimeout(tid);
+  }, [sorted]);
+
+  useEffect(() => {
+    function onHash() {
+      const h = window.location.hash;
+      const id = parseTaskHash(h);
+      appliedTaskHashRef.current = "";
+      if (!id || !tasks.some((t) => t.id === id)) return;
+      appliedTaskHashRef.current = h;
+      setFilterSubject("all");
+      setFilterStatus("all");
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          const el = document.getElementById(`task-${id}`);
+          el?.scrollIntoView({ behavior: "smooth", block: "center" });
+          setPulseTaskId(id);
+          window.setTimeout(() => setPulseTaskId(null), 2800);
+        });
+      });
+    }
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, [tasks]);
+
   function startEdit(t: Task) {
     setEditingId(t.id);
     setForm({
@@ -122,8 +175,8 @@ export default function TasksPage() {
           Tasks
         </h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Capture work with due dates and priorities. Open tasks exclude
-          completed ones by default.
+          Capture work with due dates and priorities. Open tasks exclude completed ones by default.
+          From Schedule or Dashboard, open a linked session&apos;s task title to jump here.
         </p>
       </div>
 
@@ -269,7 +322,11 @@ export default function TasksPage() {
       </form>
 
       <div className="flex flex-wrap gap-2 items-center">
+        <label htmlFor="task-filter-subject" className="sr-only">
+          Filter tasks by subject
+        </label>
         <select
+          id="task-filter-subject"
           className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
           value={filterSubject}
           onChange={(e) => setFilterSubject(e.target.value)}
@@ -281,7 +338,11 @@ export default function TasksPage() {
             </option>
           ))}
         </select>
+        <label htmlFor="task-filter-status" className="sr-only">
+          Filter tasks by status
+        </label>
         <select
+          id="task-filter-status"
           className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
@@ -306,13 +367,20 @@ export default function TasksPage() {
             return (
               <li
                 key={t.id}
-                className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+                id={`task-${t.id}`}
+                tabIndex={-1}
+                className={`flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between outline-none scroll-mt-24 ${
+                  pulseTaskId === t.id
+                    ? "ring-2 ring-indigo-500 ring-inset bg-indigo-50/40 dark:bg-indigo-950/25"
+                    : ""
+                }`}
               >
                 <div className="min-w-0 flex items-start gap-3">
                   {sub && (
                     <span
                       className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
                       style={{ backgroundColor: sub.color }}
+                      aria-hidden="true"
                     />
                   )}
                   <div>

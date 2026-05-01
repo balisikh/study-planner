@@ -148,13 +148,18 @@ export default function SubjectsPage() {
         </p>
       </div>
 
-      <section className="flex flex-wrap gap-2">
+      <section
+        className="flex flex-wrap gap-2"
+        role="toolbar"
+        aria-label="Subject categories"
+      >
         {(Object.keys(categoryLabels) as SubjectCategory[]).map((c) => {
           const active = c === activeCategory;
           return (
             <button
               key={c}
               type="button"
+              aria-pressed={active}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 active
                   ? "bg-indigo-600 text-white"
@@ -179,7 +184,11 @@ export default function SubjectsPage() {
             Quick add templates
           </h2>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <label htmlFor="qual-template-select" className="sr-only">
+              Qualification subject template
+            </label>
             <select
+              id="qual-template-select"
               className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950 sm:min-w-[14rem]"
               value={templateId}
               onChange={(e) =>
@@ -254,6 +263,7 @@ export default function SubjectsPage() {
             <div className="mt-1 flex items-center gap-2">
               <input
                 type="color"
+                aria-label="Subject colour"
                 className="h-10 w-12 rounded border border-zinc-300 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-950"
                 value={form.color}
                 onChange={(e) => setForm({ ...form, color: e.target.value })}
@@ -282,13 +292,15 @@ export default function SubjectsPage() {
       </form>
 
       <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <label className="block w-full sm:max-w-sm">
+        <label className="block w-full sm:max-w-sm" htmlFor="subject-search">
           <span className="text-xs font-medium text-zinc-500">Search</span>
           <input
+            id="subject-search"
             className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
             placeholder="Type to filter subjects"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            autoComplete="off"
           />
         </label>
       </section>
@@ -314,6 +326,7 @@ export default function SubjectsPage() {
                 <span
                   className="h-2.5 w-2.5 shrink-0 rounded-full"
                   style={{ backgroundColor: s.color }}
+                  aria-hidden="true"
                 />
                 <span className="truncate font-medium text-zinc-900 dark:text-zinc-50">
                   {s.name}

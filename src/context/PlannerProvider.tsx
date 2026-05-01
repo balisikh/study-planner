@@ -21,7 +21,7 @@ import {
   type Task,
   type TaskStatus,
 } from "@/lib/types";
-import { defaultState, loadState, saveState } from "@/lib/storage";
+import { buildDemoPlannerState, defaultState, loadState, saveState } from "@/lib/storage";
 import { normalizeSubjectName } from "@/lib/subjectTemplates";
 
 function nowISO(): string {
@@ -56,6 +56,7 @@ type PlannerContextValue = {
   importState: (json: string) => void;
   exportState: () => string;
   reset: () => void;
+  loadDemo: () => void;
 };
 
 const PlannerContext = createContext<PlannerContextValue | null>(null);
@@ -289,7 +290,17 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
 
   const exportState = useCallback(() => JSON.stringify(state, null, 2), [state]);
 
-  const reset = useCallback(() => setState(defaultState()), []);
+  const reset = useCallback(() => {
+    const next = defaultState();
+    setState(next);
+    saveState(next);
+  }, []);
+
+  const loadDemo = useCallback(() => {
+    const next = buildDemoPlannerState();
+    setState(next);
+    saveState(next);
+  }, []);
 
   const value = useMemo<PlannerContextValue>(
     () => ({
@@ -310,6 +321,7 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
       importState,
       exportState,
       reset,
+      loadDemo,
     }),
     [
       state,
@@ -325,6 +337,7 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
       importState,
       exportState,
       reset,
+      loadDemo,
     ]
   );
 

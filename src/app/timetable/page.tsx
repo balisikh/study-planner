@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { usePlanner } from "@/context/PlannerProvider";
+import { hrefTask } from "@/lib/taskNav";
 import {
   addDaysISO,
   formatDisplayDate,
@@ -58,10 +59,11 @@ export default function TimetablePage() {
             .
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" role="group" aria-label="Week navigation">
           <button
             type="button"
             className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
+            aria-label="Previous week"
             onClick={() => setWeekStart((w) => addDaysISO(w, -7))}
           >
             ← Prev
@@ -69,6 +71,7 @@ export default function TimetablePage() {
           <button
             type="button"
             className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
+            aria-label="Jump to this week"
             onClick={() => setWeekStart(startOfWeekISO(today))}
           >
             This week
@@ -76,6 +79,7 @@ export default function TimetablePage() {
           <button
             type="button"
             className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
+            aria-label="Next week"
             onClick={() => setWeekStart((w) => addDaysISO(w, 7))}
           >
             Next →
@@ -133,7 +137,16 @@ export default function TimetablePage() {
                               />
                             )}
                             <span className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
-                              {task?.title ?? "Unlinked session"}
+                              {task ? (
+                                <Link
+                                  href={hrefTask(task.id)}
+                                  className="text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400"
+                                >
+                                  {task.title}
+                                </Link>
+                              ) : (
+                                "Unlinked session"
+                              )}
                             </span>
                           </span>
                           <span className="ml-1 text-xs capitalize text-zinc-500">
