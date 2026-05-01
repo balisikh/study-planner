@@ -40,7 +40,7 @@ type PlannerContextValue = {
   sessions: StudySession[];
   upsertSubject: (
     s: Omit<Subject, "id" | "createdAt" | "updatedAt"> & { id?: string }
-  ) => void;
+  ) => string | undefined;
   deleteSubject: (id: string) => void;
   mergeSubjects: (fromId: string, intoId: string) => void;
   upsertTask: (t: Omit<Task, "id" | "createdAt" | "updatedAt"> & { id?: string }) => void;
@@ -73,8 +73,11 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const upsertSubject = useCallback(
-    (input: Omit<Subject, "id" | "createdAt" | "updatedAt"> & { id?: string }) => {
+    (
+      input: Omit<Subject, "id" | "createdAt" | "updatedAt"> & { id?: string }
+    ): string | undefined => {
       const t = nowISO();
+      let resultId: string | undefined;
       set((p) => {
         if (input.id) {
           const desired = normalizeSubjectName(input.name);
@@ -82,9 +85,9 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
             (s) => s.id !== input.id && normalizeSubjectName(s.name) === desired
           );
           if (conflict) {
-            // Global unique subject names enforced: ignore conflicting update.
             return p;
           }
+          resultId = input.id;
           return {
             ...p,
             subjects: p.subjects.map((s) =>
@@ -97,7 +100,6 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
         const desired = normalizeSubjectName(input.name);
         const exists = p.subjects.some((s) => normalizeSubjectName(s.name) === desired);
         if (exists) {
-          // Global unique subject names enforced: ignore duplicate create.
           return p;
         }
         const color =
@@ -112,8 +114,10 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
           createdAt: t,
           updatedAt: t,
         };
+        resultId = s.id;
         return { ...p, subjects: [...p.subjects, s] };
       });
+      return resultId;
     },
     [set]
   );

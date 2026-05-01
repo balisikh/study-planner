@@ -119,6 +119,11 @@ export function normalizeSubjectName(name: string): string {
 }
 
 /** Inner qualification title after board/provider prefixes from examBoardQualifications. */
+export function qualificationSubjectStem(subjectName: string): string | null {
+  const normalizedKey = normalizeSubjectName(subjectName);
+  return stemAfterQualificationPrefix(normalizedKey);
+}
+
 function stemAfterQualificationPrefix(normalizedKey: string): string | null {
   const sepGcse = " · gcse ";
   const iGcse = normalizedKey.indexOf(sepGcse);
