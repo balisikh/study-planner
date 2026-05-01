@@ -11,6 +11,8 @@ import { parseTaskHash } from "@/lib/taskNav";
 const priorities: Priority[] = ["low", "medium", "high"];
 const statuses: TaskStatus[] = ["todo", "doing", "done"];
 
+type TaskSortMode = "due" | "title";
+
 function emptyForm(): Omit<Task, "id" | "createdAt" | "updatedAt"> {
   return {
     title: "",
@@ -34,6 +36,7 @@ export default function TasksPage() {
   const today = todayISO();
   const [filterSubject, setFilterSubject] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("open");
+  const [sortBy, setSortBy] = useState<TaskSortMode>("due");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm());
   const [pulseTaskId, setPulseTaskId] = useState<string | null>(null);
@@ -51,14 +54,27 @@ export default function TasksPage() {
   }, [tasks, filterSubject, filterStatus]);
 
   const sorted = useMemo(() => {
-    return [...filtered].sort((a, b) => {
-      const ad = a.dueDate || "9999-12-31";
-      const bd = b.dueDate || "9999-12-31";
-      if (ad !== bd) return ad < bd ? -1 : 1;
-      const pr: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
-      return pr[a.priority] - pr[b.priority];
-    });
-  }, [filtered]);
+    const arr = [...filtered];
+    const pr: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
+    if (sortBy === "due") {
+      arr.sort((a, b) => {
+        const ad = a.dueDate || "9999-12-31";
+        const bd = b.dueDate || "9999-12-31";
+        if (ad !== bd) return ad < bd ? -1 : 1;
+        return pr[a.priority] - pr[b.priority];
+      });
+    } else {
+      arr.sort((a, b) => {
+        const c = a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
+        if (c !== 0) return c;
+        const ad = a.dueDate || "9999-12-31";
+        const bd = b.dueDate || "9999-12-31";
+        if (ad !== bd) return ad < bd ? -1 : 1;
+        return pr[a.priority] - pr[b.priority];
+      });
+    }
+    return arr;
+  }, [filtered, sortBy]);
 
   const subjectMap = useMemo(
     () => Object.fromEntries(subjects.map((s) => [s.id, s])),
@@ -352,6 +368,18 @@ export default function TasksPage() {
           <option value="doing">In progress</option>
           <option value="done">Done</option>
           <option value="all">All statuses</option>
+        </select>
+        <label htmlFor="task-sort-mode" className="sr-only">
+          Sort tasks
+        </label>
+        <select
+          id="task-sort-mode"
+          className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as TaskSortMode)}
+        >
+          <option value="due">Sort by due date</option>
+          <option value="title">Sort by title (A–Z)</option>
         </select>
       </div>
 

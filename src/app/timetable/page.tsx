@@ -7,9 +7,11 @@ import { hrefTask } from "@/lib/taskNav";
 import {
   addDaysISO,
   formatDisplayDate,
+  isDateInInclusiveRange,
   minutesToLabel,
   startOfWeekISO,
   todayISO,
+  weekEndISO,
 } from "@/lib/dates";
 
 export default function TimetablePage() {
@@ -21,6 +23,9 @@ export default function TimetablePage() {
     () => Array.from({ length: 7 }, (_, i) => addDaysISO(weekStart, i)),
     [weekStart]
   );
+
+  const weekEnd = weekEndISO(weekStart);
+  const todayInWeek = isDateInInclusiveRange(today, weekStart, weekEnd);
 
   const subjectMap = useMemo(
     () => Object.fromEntries(subjects.map((s) => [s.id, s] as const)),
@@ -57,6 +62,27 @@ export default function TimetablePage() {
               Schedule
             </Link>
             .
+          </p>
+          <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+            <span className="font-medium text-zinc-800 dark:text-zinc-100">
+              {formatDisplayDate(weekStart)} – {formatDisplayDate(weekEnd)}
+            </span>
+            {todayInWeek ? (
+              <span className="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-800 dark:bg-indigo-900/70 dark:text-indigo-100">
+                Today · {formatDisplayDate(today)}
+              </span>
+            ) : (
+              <span className="text-zinc-500 dark:text-zinc-400">
+                Today {formatDisplayDate(today)} ·{" "}
+                <button
+                  type="button"
+                  className="font-medium text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400"
+                  onClick={() => setWeekStart(startOfWeekISO(today))}
+                >
+                  Jump to this week
+                </button>
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2" role="group" aria-label="Week navigation">

@@ -18,6 +18,15 @@ export function startOfWeekISO(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Sunday-start week: inclusive end is start + 6 days. */
+export function weekEndISO(weekStart: string): string {
+  return addDaysISO(weekStart, 6);
+}
+
+export function isDateInInclusiveRange(iso: string, start: string, end: string): boolean {
+  return iso >= start && iso <= end;
+}
+
 export function formatDisplayDate(iso: string): string {
   const [y, m, day] = iso.split("-").map(Number);
   // Fully deterministic formatting (no Intl / locale) to avoid hydration mismatches
