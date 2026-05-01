@@ -4,9 +4,8 @@ import { useMemo, useRef, useState } from "react";
 import { usePlanner } from "@/context/PlannerProvider";
 import type { Subject, SubjectCategory } from "@/lib/types";
 import {
-  CUSTOM_ESSENTIAL_SUBJECTS,
-  SUBJECT_TEMPLATES,
-  type SubjectTemplateId,
+  QUALIFICATION_SUBJECT_TEMPLATES,
+  type QualificationTemplateId,
   getSuggestedSubjectColor,
   normalizeSubjectName,
 } from "@/lib/subjectTemplates";
@@ -17,11 +16,11 @@ function emptyForm(category: SubjectCategory): Pick<Subject, "name" | "color" | 
 }
 
 export default function SubjectsPage() {
-  const { subjects, upsertSubject, deleteSubject, mergeSubjects } = usePlanner();
+  const { subjects, upsertSubject, deleteSubject } = usePlanner();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<SubjectCategory>("gcse");
   const [form, setForm] = useState(() => emptyForm("gcse"));
-  const [templateId, setTemplateId] = useState<SubjectTemplateId>("gcse");
+  const [templateId, setTemplateId] = useState<QualificationTemplateId>("gcse");
   const [query, setQuery] = useState("");
   const formRef = useRef<HTMLFormElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
@@ -73,13 +72,8 @@ export default function SubjectsPage() {
     cancel();
   }
 
-  function addTemplate() {
-    const list = SUBJECT_TEMPLATES[templateId].subjects;
-    const category = templateId as unknown as SubjectCategory;
-    const existing = new Set(
-      subjects
-        .map((s) => normalizeSubjectName(s.name))
-    );
+  function addSubjectsFromList(list: string[], category: SubjectCategory) {
+    const existing = new Set(subjects.map((s) => normalizeSubjectName(s.name)));
     let added = 0;
     for (const name of list) {
       const norm = normalizeSubjectName(name);
@@ -92,6 +86,11 @@ export default function SubjectsPage() {
       added++;
     }
     setActiveCategory(category);
+  }
+
+  function addQualificationTemplate() {
+    const list = QUALIFICATION_SUBJECT_TEMPLATES[templateId].subjects;
+    addSubjectsFromList(list, templateId as SubjectCategory);
   }
 
   function applySuggestedColorsForActiveCategory() {
@@ -138,123 +137,6 @@ export default function SubjectsPage() {
     });
   }
 
-  function cleanCustomKeepEssentials() {
-    const essentials = new Set(CUSTOM_ESSENTIAL_SUBJECTS.map(normalizeSubjectName));
-    const customSubjects = subjects.filter((s) => s.category === "custom");
-    const toDelete = customSubjects.filter(
-      (s) => !essentials.has(normalizeSubjectName(s.name))
-    );
-    if (toDelete.length === 0) {
-      alert("Custom already only contains the essentials.");
-      return;
-    }
-    if (
-      !confirm(
-        `Remove ${toDelete.length} subject(s) from Custom and keep only short courses + UCAS prep + Exam revision + Driving theory?\\n\\nThis can unassign tasks linked to deleted subjects.`
-      )
-    )
-      return;
-    for (const s of toDelete) deleteSubject(s.id);
-  }
-
-  function dedupeCategoryByName(category: SubjectCategory) {
-    const list = subjects.filter((s) => s.category === category);
-    const byName = new Map<string, Subject[]>();
-    for (const s of list) {
-      const k = normalizeSubjectName(s.name);
-      const arr = byName.get(k) ?? [];
-      arr.push(s);
-      byName.set(k, arr);
-    }
-    const duplicates = Array.from(byName.values()).filter((arr) => arr.length > 1);
-    if (duplicates.length === 0) {
-      alert(`No duplicates found in ${categoryLabels[category]}.`);
-      return;
-    }
-    const totalToRemove = duplicates.reduce((sum, arr) => sum + (arr.length - 1), 0);
-    if (
-      !confirm(
-        `Merge and remove ${totalToRemove} duplicate subject(s) in ${categoryLabels[category]}?\\n\\nTasks will be re-linked to the kept subject.`
-      )
-    )
-      return;
-    for (const group of duplicates) {
-      const kept = group[0];
-      for (const extra of group.slice(1)) {
-        mergeSubjects(extra.id, kept.id);
-        deleteSubject(extra.id);
-      }
-    }
-  }
-
-  function dedupeAllSubjectsGlobal() {
-    const byName = new Map<string, Subject[]>();
-    for (const s of subjects) {
-      const k = normalizeSubjectName(s.name);
-      const arr = byName.get(k) ?? [];
-      arr.push(s);
-      byName.set(k, arr);
-    }
-    const duplicates = Array.from(byName.values()).filter((arr) => arr.length > 1);
-    if (duplicates.length === 0) {
-      alert("No global duplicates found.");
-      return;
-    }
-    const totalToRemove = duplicates.reduce((sum, arr) => sum + (arr.length - 1), 0);
-    if (
-      !confirm(
-        `Merge and remove ${totalToRemove} duplicate subject(s) across the whole app?\\n\\nTasks will be re-linked to the kept subject.`
-      )
-    )
-      return;
-
-    function rank(s: Subject): number {
-      // Prefer non-custom, then earlier creation.
-      const catScore = s.category === "custom" ? 1 : 0;
-      return catScore;
-    }
-
-    for (const group of duplicates) {
-      const sorted = [...group].sort((a, b) => {
-        const r = rank(a) - rank(b);
-        if (r !== 0) return r;
-        return a.createdAt.localeCompare(b.createdAt);
-      });
-      const kept = sorted[0];
-      for (const extra of sorted.slice(1)) {
-        mergeSubjects(extra.id, kept.id);
-        deleteSubject(extra.id);
-      }
-    }
-  }
-
-  function removeCustomDuplicatesAgainstOtherCategories() {
-    const others = subjects.filter((s) => s.category !== "custom");
-    const otherByName = new Map<string, Subject>();
-    for (const s of others) {
-      const k = normalizeSubjectName(s.name);
-      if (!otherByName.has(k)) otherByName.set(k, s);
-    }
-    const custom = subjects.filter((s) => s.category === "custom");
-    const dupes = custom.filter((s) => otherByName.has(normalizeSubjectName(s.name)));
-    if (dupes.length === 0) {
-      alert("No duplicates found between Custom and other categories.");
-      return;
-    }
-    if (
-      !confirm(
-        `Remove ${dupes.length} duplicate subject(s) from Custom that already exist in other categories?\\n\\nTasks will be re-linked to the non-Custom subject.`
-      )
-    )
-      return;
-    for (const s of dupes) {
-      const into = otherByName.get(normalizeSubjectName(s.name));
-      if (!into) continue;
-      mergeSubjects(s.id, into.id);
-      deleteSubject(s.id);
-    }
-  }
-
   return (
     <div className="space-y-8">
       <div>
@@ -291,73 +173,46 @@ export default function SubjectsPage() {
         })}
       </section>
 
-      <section className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 space-y-3">
-        <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-          Quick add templates
-        </h2>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <select
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-            value={templateId}
-            onChange={(e) => setTemplateId(e.target.value as SubjectTemplateId)}
-          >
-            {(Object.keys(SUBJECT_TEMPLATES) as SubjectTemplateId[]).map((id) => (
-              <option key={id} value={id}>
-                {SUBJECT_TEMPLATES[id].label}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
-            onClick={addTemplate}
-          >
-            Add subjects
-          </button>
-          <button
-            type="button"
-            className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
-            onClick={applySuggestedColorsForActiveCategory}
-          >
-            Apply suggested colours
-          </button>
-          {activeCategory === "custom" && (
-            <>
-              <button
-                type="button"
-                className="rounded-lg px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                onClick={cleanCustomKeepEssentials}
-              >
-                Clean Custom (keep essentials)
-              </button>
-              <button
-                type="button"
-                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
-                onClick={removeCustomDuplicatesAgainstOtherCategories}
-              >
-                Remove Custom duplicates
-              </button>
-              <button
-                type="button"
-                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
-                onClick={() => dedupeCategoryByName("custom")}
-              >
-                Dedupe Custom
-              </button>
-              <button
-                type="button"
-                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
-                onClick={dedupeAllSubjectsGlobal}
-              >
-                Dedupe all (global)
-              </button>
-            </>
-          )}
-          <p className="text-xs text-zinc-500">
-            Duplicates are skipped (by name).
-          </p>
-        </div>
-      </section>
+      {activeCategory !== "custom" && (
+        <section className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 space-y-3">
+          <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+            Quick add templates
+          </h2>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <select
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950 sm:min-w-[14rem]"
+              value={templateId}
+              onChange={(e) =>
+                setTemplateId(e.target.value as QualificationTemplateId)
+              }
+            >
+              {(
+                Object.keys(
+                  QUALIFICATION_SUBJECT_TEMPLATES
+                ) as QualificationTemplateId[]
+              ).map((id) => (
+                <option key={id} value={id}>
+                  {QUALIFICATION_SUBJECT_TEMPLATES[id].label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+              onClick={addQualificationTemplate}
+            >
+              Add subjects
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
+              onClick={applySuggestedColorsForActiveCategory}
+            >
+              Apply colours
+            </button>
+          </div>
+        </section>
+      )}
 
       <form
         ref={formRef}
@@ -431,7 +286,7 @@ export default function SubjectsPage() {
           <span className="text-xs font-medium text-zinc-500">Search</span>
           <input
             className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-            placeholder="Type to filter subjects…"
+            placeholder="Type to filter subjects"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />

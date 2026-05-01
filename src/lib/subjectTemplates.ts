@@ -1,13 +1,13 @@
-export type SubjectTemplateId =
+/** GCSE, A Level, BTEC, traineeship & uni bulk-add templates (dropdown only). */
+export type QualificationTemplateId =
   | "gcse"
   | "btec"
   | "alevel"
   | "codingTraineeship"
-  | "university"
-  | "custom";
+  | "university";
 
-export const SUBJECT_TEMPLATES: Record<
-  SubjectTemplateId,
+export const QUALIFICATION_SUBJECT_TEMPLATES: Record<
+  QualificationTemplateId,
   { label: string; subjects: string[] }
 > = {
   gcse: {
@@ -242,20 +242,43 @@ export const SUBJECT_TEMPLATES: Record<
       "Fine Art",
     ],
   },
-  custom: {
-    label: "Custom (useful extras)",
-    subjects: [
-      "Short course: First Aid",
-      "Short course: Online course",
-      "EPQ-style work",
-      "UCAS prep",
-      "Exam revision",
-      "Driving theory",
-    ],
-  },
 };
 
-export const CUSTOM_ESSENTIAL_SUBJECTS = SUBJECT_TEMPLATES.custom.subjects;
+/** Custom-only starter subjects — added from the Custom tab, not the qualification dropdown. */
+export const CUSTOM_ESSENTIAL_SUBJECTS: string[] = [
+  "Short course: First aid",
+  "Short course: Food hygiene / food safety",
+  "Short course: Safeguarding essentials",
+  "Short course: Mental health awareness",
+  "Short course: Digital & IT essentials",
+  "Short course: Employability skills",
+  "Short course: Financial literacy basics",
+  "Short course: Online learning / MOOC",
+  "UCAS prep: Personal statement",
+  "UCAS prep: Course & university research",
+  "UCAS prep: Open days & virtual events",
+  "UCAS prep: Application form & choices (up to 5)",
+  "UCAS prep: Deadlines & key dates",
+  "UCAS prep: Teacher references",
+  "UCAS prep: Admissions tests (where required)",
+  "UCAS prep: Interview preparation (where required)",
+  "UCAS prep: Offers — firm & insurance",
+  "Exam revision (all subjects): Master timetable",
+  "Exam revision (all subjects): Past papers & mark schemes",
+  "Exam revision (all subjects): Flashcards & spaced repetition",
+  "Exam revision (all subjects): Topic checklist — every subject",
+  "Exam revision (all subjects): Weak areas catch-up",
+  "Exam revision (all subjects): Mock exams & timed practice",
+  "Exam revision (all subjects): Exam technique & command words",
+  "Car theory (cars): Highway Code",
+  "Car theory (cars): Hazard perception",
+  "Car theory (cars): Theory test — mocks & booking",
+  "Car practice (cars): Instructor lessons",
+  "Car practice (cars): Manoeuvres (bay, parallel, pull up on right)",
+  "Car practice (cars): Independent driving & varied roads",
+  "Car practice (cars): Show me / tell me (vehicle safety)",
+  "Car practice (cars): Practical driving test preparation",
+];
 
 // Consistent colours for common subjects (template adds).
 // If a subject isn't mapped, the UI will fall back to a rotating palette.
@@ -299,6 +322,14 @@ export function normalizeSubjectName(name: string): string {
 
 export function getSuggestedSubjectColor(name: string): string | null {
   const key = normalizeSubjectName(name);
-  return SUBJECT_COLOR_MAP[key] ?? null;
+  const exact = SUBJECT_COLOR_MAP[key];
+  if (exact) return exact;
+  // Custom starter topics (prefix groups)
+  if (key.startsWith("short course:")) return "#0d9488";
+  if (key.startsWith("ucas prep:")) return "#7c3aed";
+  if (key.startsWith("exam revision (all subjects):")) return "#ea580c";
+  if (key.startsWith("car theory (cars):")) return "#475569";
+  if (key.startsWith("car practice (cars):")) return "#64748b";
+  return null;
 }
 
