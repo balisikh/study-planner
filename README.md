@@ -1,5 +1,9 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Documentation
+
+Product and technical documentation (suitable for PDF export) lives in **[docs/STUDY_PLANNER_DOCUMENTATION.md](docs/STUDY_PLANNER_DOCUMENTATION.md)**.
+
 ## Getting Started
 
 First, run the development server:
