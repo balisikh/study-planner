@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Study Planner — Technical &amp; Product Documentation</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --text: #1a1a1a;
+  --muted: #555;
+  --border: #ccc;
+  --bg: #fff;
+  --code-bg: #f4f4f5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #f4f4f5;
+    --muted: #a1a1aa;
+    --border: #3f3f46;
+    --bg: #18181b;
+    --code-bg: #27272a;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 11pt;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg);
+  margin: 0;
+  padding: 2rem 1.5rem 4rem;
+  max-width: 52rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+.doc h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0.35rem;
+  margin-top: 0;
+}
+.doc h2 {
+  font-size: 1.25rem;
+  margin-top: 2rem;
+  page-break-after: avoid;
+}
+.doc h3 { font-size: 1.05rem; margin-top: 1.25rem; page-break-after: avoid; }
+.doc p { margin: 0.65rem 0; }
+.doc ul, .doc ol { margin: 0.5rem 0 0.75rem 1.25rem; }
+.doc li { margin: 0.25rem 0; }
+.doc table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10pt;
+  margin: 1rem 0;
+  page-break-inside: avoid;
+}
+.doc th, .doc td {
+  border: 1px solid var(--border);
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+.doc th { background: var(--code-bg); font-weight: 600; }
+.doc hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.5rem 0;
+}
+.doc code {
+  font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", Consolas, monospace;
+  font-size: 0.9em;
+  background: var(--code-bg);
+  padding: 0.12em 0.35em;
+  border-radius: 4px;
+}
+.doc pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  font-size: 9pt;
+  page-break-inside: avoid;
+}
+.doc pre code { background: none; padding: 0; }
+.doc blockquote {
+  margin: 0.75rem 0;
+  padding-left: 1rem;
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+}
+.print-hint {
+  margin-top: 2.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 10pt;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+@media print {
+  body { padding: 0; max-width: none; }
+  .print-hint { border: none; padding: 0; margin-top: 1rem; font-size: 9pt; }
+}
+</style>
+</head>
+<body>
+<article class="doc">
+<h1>Study Planner — Technical &amp; Product Documentation</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Product</strong></td>
+<td>Study Planner</td>
+</tr>
+<tr>
+<td><strong>Repository</strong></td>
+<td><code>study-planner</code> (Next.js application)</td>
+</tr>
+<tr>
+<td><strong>Document version</strong></td>
+<td>1.0</td>
+</tr>
+<tr>
+<td><strong>Application version</strong></td>
+<td>0.1.0</td>
+</tr>
+<tr>
+<td><strong>Last updated</strong></td>
+<td>May 2026</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Executive summary</h2>
+<p>Study Planner is a client-first web application that helps learners organise study around <strong>subjects</strong>, actionable <strong>tasks</strong>, and calendar-based <strong>study sessions</strong>. State persists entirely in the browser (<code>localStorage</code>), with optional <strong>JSON backup and restore</strong>. The stack is <strong>Next.js 16</strong> (App Router), <strong>React 19</strong>, and <strong>TypeScript</strong>, styled with <strong>Tailwind CSS 4</strong>. Typical deployment is <strong>Vercel</strong>, sourced from <strong>GitHub</strong>, giving a stable public URL while keeping core functionality independent of a dedicated backend.</p>
+<p>This document describes <strong>what</strong> the product is, <strong>why</strong> it was built this way, <strong>how</strong> it is structured, <strong>key features and benefits</strong>, a <strong>development roadmap</strong>, <strong>issues encountered and resolutions</strong>, and notes on <strong>exporting this document to PDF</strong>.</p>
+<hr>
+<h2>Table of contents</h2>
+<ol>
+<li><a href="#1-purpose-and-scope">Purpose and scope</a>  </li>
+<li><a href="#2-what-the-application-is">What the application is</a>  </li>
+<li><a href="#3-objectives-and-rationale">Objectives and rationale</a>  </li>
+<li><a href="#4-technical-architecture">Technical architecture</a>  </li>
+<li><a href="#5-alternative-implementation-approaches">Alternative implementation approaches</a>  </li>
+<li><a href="#6-key-features-uses-and-benefits">Key features, uses, and benefits</a>  </li>
+<li><a href="#7-duplicate-titles-and-topic-checklists">Duplicate titles and topic checklists</a>  </li>
+<li><a href="#8-development-lifecycle">Development lifecycle</a>  </li>
+<li><a href="#9-issues-encountered-and-how-they-were-addressed">Issues encountered and how they were addressed</a>  </li>
+<li><a href="#10-deployment-and-operations">Deployment and operations</a>  </li>
+<li><a href="#11-future-considerations">Future considerations</a>  </li>
+<li><a href="#appendix-exporting-this-document-to-pdf">Appendix: Exporting this document to PDF</a>  </li>
+<li><a href="#13-document-summary">Document summary</a></li>
+</ol>
+<hr>
+<h2>1. Purpose and scope</h2>
+<p><strong>Purpose:</strong> Provide a lightweight, trustworthy planner that works in the browser without mandatory accounts or server-side databases for day-to-day use.</p>
+<p><strong>In scope:</strong> Subject management, task CRUD, weekly scheduling, availability modelling (types present in state), settings for backup/restore and maintenance workflows (duplicate consolidation).</p>
+<p><strong>Out of scope (current version):</strong> Multi-user collaboration, server-authoritative sync, native mobile apps, and institutional SSO—these remain extension opportunities.</p>
+<hr>
+<h2>2. What the application is</h2>
+<p>Study Planner is a <strong>multi-page</strong> Next.js application using the <strong>App Router</strong>. Primary routes include:</p>
+<table>
+<thead>
+<tr>
+<th>Route</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/</code></td>
+<td>Landing / dashboard entry</td>
+</tr>
+<tr>
+<td><code>/subjects</code></td>
+<td>Subject categories, templates, per-subject topic checklists</td>
+</tr>
+<tr>
+<td><code>/tasks</code></td>
+<td>Task list, filters, manual entry, topic fills</td>
+</tr>
+<tr>
+<td><code>/schedule</code></td>
+<td>Week-based session planning linked to tasks</td>
+</tr>
+<tr>
+<td><code>/timetable</code></td>
+<td>Timetable-oriented view (supporting structure)</td>
+</tr>
+<tr>
+<td><code>/settings</code></td>
+<td>Backup, restore, demo data, duplicate merge tooling</td>
+</tr>
+</tbody></table>
+<p>All planner entities share a single <strong>application state</strong> surfaced through <strong>React context</strong> (<code>PlannerProvider</code>). Mutations update React state and trigger persistence.</p>
+<hr>
+<h2>3. Objectives and rationale</h2>
+<table>
+<thead>
+<tr>
+<th>Objective</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Low friction</td>
+<td>Students open a URL and begin planning immediately.</td>
+</tr>
+<tr>
+<td>Privacy-by-default</td>
+<td>Data stays on-device unless the user exports JSON.</td>
+</tr>
+<tr>
+<td>Recoverability</td>
+<td>Downloadable backups mitigate browser clears or device changes.</td>
+</tr>
+<tr>
+<td>Maintainability</td>
+<td>Clear separation between UI routes and domain libraries (templates, concept tasks, merge/dedupe helpers).</td>
+</tr>
+<tr>
+<td>Deployability</td>
+<td>Static-friendly hosting aligns with Next.js and Vercel defaults.</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>4. Technical architecture</h2>
+<h3>4.1 Stack</h3>
+<ul>
+<li><strong>Runtime framework:</strong> Next.js <strong>16.2.4</strong>  </li>
+<li><strong>UI:</strong> React <strong>19.2.4</strong>, TypeScript <strong>5.x</strong>  </li>
+<li><strong>Styling:</strong> Tailwind CSS <strong>4</strong>  </li>
+<li><strong>Persistence:</strong> Browser <code>localStorage</code> via <code>STORAGE_KEY</code> (<code>study-planner-v1</code> in types module)</li>
+</ul>
+<h3>4.2 Domain model (high level)</h3>
+<ul>
+<li><strong>Subject:</strong> Name, colour, qualification category, timestamps.  </li>
+<li><strong>Task:</strong> Title, optional subject link, due date, priority, estimate, notes, status, completion metadata.  </li>
+<li><strong>StudySession:</strong> Date, start/end minutes, optional task link, session status.  </li>
+<li><strong>AvailabilityRule:</strong> Weekly availability windows (stored with planner state).</li>
+</ul>
+<h3>4.3 High-level data flow</h3>
+<pre><code class="language-mermaid">flowchart LR
+  subgraph Client[&quot;Browser&quot;]
+    Pages[&quot;App Router pages&quot;]
+    CTX[&quot;PlannerProvider&quot;]
+    Lib[&quot;Domain libs&quot;]
+    LS[(&quot;localStorage&quot;)]
+  end
+  Pages --&gt; CTX
+  CTX --&gt; Lib
+  CTX --&gt; LS
+</code></pre>
+<p>User actions on pages invoke context methods (e.g. <code>upsertTask</code>, <code>upsertSubject</code>, <code>mergeDuplicateTaskGroups</code>). Effects persist consolidated state to <code>localStorage</code> so refreshes restore continuity.</p>
+<h3>4.4 Notable libraries / modules</h3>
+<ul>
+<li><strong><code>subjectTemplates</code></strong> — Qualification templates and naming normalisation.  </li>
+<li><strong><code>subjectConceptTasks</code></strong> — Topic checklist derivation and bulk/per-subject application.  </li>
+<li><strong><code>taskTitleDedupe</code> / <code>mergeDuplicateTasks</code></strong> — Duplicate detection and merge semantics for maintenance.</li>
+</ul>
+<hr>
+<h2>5. Alternative implementation approaches</h2>
+<p>When designing a study planner web app, teams commonly evaluate:</p>
+<table>
+<thead>
+<tr>
+<th>Approach</th>
+<th>Description</th>
+<th>Fit for this product</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Client-only SPA/PWA</strong></td>
+<td>State in browser or IndexedDB; optional export</td>
+<td><strong>Chosen baseline</strong> — aligns with current architecture</td>
+</tr>
+<tr>
+<td><strong>BaaS or custom API + DB</strong></td>
+<td>Authenticated multi-device sync</td>
+<td>Strong for cohort products; adds auth and hosting cost</td>
+</tr>
+<tr>
+<td><strong>Hybrid</strong></td>
+<td>Local-first with optional cloud sync</td>
+<td>Balanced path for a later phase</td>
+</tr>
+<tr>
+<td><strong>Mobile-native</strong></td>
+<td>iOS/Android dedicated apps</td>
+<td>Higher distribution friction for coursework tooling</td>
+</tr>
+</tbody></table>
+<p>The present implementation prioritises <strong>speed to value</strong> and <strong>operational simplicity</strong> while leaving a credible upgrade path toward sync later.</p>
+<hr>
+<h2>6. Key features, uses, and benefits</h2>
+<h3>Features</h3>
+<ul>
+<li><strong>Structured subjects</strong> with categories (e.g. GCSE, A Level, BTEC, university, custom).  </li>
+<li><strong>Template-driven bulk adds</strong> for common qualification lists.  </li>
+<li><strong>Topic checklists</strong> — curated task titles per subject template to accelerate setup.  </li>
+<li><strong>Rich tasks:</strong> priorities (<code>low</code> / <code>medium</code> / <code>high</code>), statuses (<code>todo</code> / <code>doing</code> / <code>done</code>), optional due dates and estimates, notes.  </li>
+<li><strong>Schedule:</strong> Sessions tied to calendar dates and optionally linked tasks; navigation hooks between schedule and tasks.  </li>
+<li><strong>Settings:</strong> JSON export/import, demo dataset load, reset, <strong>duplicate title merge</strong> with session reassignment.</li>
+</ul>
+<h3>Typical uses</h3>
+<ul>
+<li>Weekly planning across subjects.  </li>
+<li>Tracking revision topics derived from syllabi-style checklists.  </li>
+<li>Blocking time on a calendar while preserving links back to concrete tasks.</li>
+</ul>
+<h3>Benefits</h3>
+<ul>
+<li><strong>Predictable behaviour</strong> for backups (single JSON artifact).  </li>
+<li><strong>Guardrails</strong> against accidental duplicate manual titles while allowing checklist-driven flexibility across subjects (see §7).  </li>
+<li><strong>Operational clarity</strong>: deploy from Git; smoke-test with production builds (<code>npm run build</code>).</li>
+</ul>
+<hr>
+<h2>7. Duplicate titles and topic checklists</h2>
+<p>To balance usability and data hygiene:</p>
+<ul>
+<li><strong>Manual task create/update:</strong> Normalised titles must remain <strong>unique across the entire planner</strong>. Conflicting saves are rejected with user-visible feedback.  </li>
+<li><strong>Per-subject topic checklist:</strong> When adding missing checklist tasks for <strong>one subject</strong>, inserts may reuse a normalised title that already exists on <strong>another subject</strong>. Inserts use a controlled path (<code>allowDuplicateNormalizedTitle</code> on task upsert) so manually typed tasks cannot bypass global uniqueness.  </li>
+<li><strong>Bulk “fill everywhere” / template flows:</strong> Continue to respect <strong>planner-wide</strong> duplicate avoidance so mass imports do not explode redundant rows.  </li>
+<li><strong>Maintenance:</strong> Settings exposes duplicate detection with <strong>merge</strong> semantics (consolidate notes and fields, reassign sessions, delete redundant rows).  </li>
+<li><strong>Imports:</strong> Restoring backups rejects datasets that already contain duplicate normalised titles at import time.</li>
+</ul>
+<hr>
+<h2>8. Development lifecycle</h2>
+<p>Recommended sequence that reflects how this codebase evolved:</p>
+<ol>
+<li><strong>Scaffold</strong> Next.js (App Router), TypeScript, Tailwind.  </li>
+<li><strong>Define</strong> core types (<code>PlannerState</code>, entities).  </li>
+<li><strong>Implement</strong> <code>PlannerProvider</code> with immutable-style updates and persistence hooks.  </li>
+<li><strong>Build</strong> primary surfaces: Subjects → Tasks → Schedule → Settings.  </li>
+<li><strong>Integrate</strong> topic template libraries and checklist application logic.  </li>
+<li><strong>Harden</strong> UX: accessible forms, edit flows, scroll/focus affordances, confirmation dialogs.  </li>
+<li><strong>Enforce</strong> business rules: global manual uniqueness, selective checklist bypass, import validation.  </li>
+<li><strong>Add</strong> maintenance tooling (duplicate merge).  </li>
+<li><strong>Verify</strong> with <code>npm run build</code>, lint, and manual QA on priority journeys.  </li>
+<li><strong>Deploy</strong> via GitHub → Vercel; confirm production branch alignment (<code>master</code> or <code>main</code>).</li>
+</ol>
+<hr>
+<h2>9. Issues encountered and how they were addressed</h2>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Symptom</th>
+<th>Resolution</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Topic checklist completeness</td>
+<td>Rows skipped when the same title existed on another subject</td>
+<td>Per-subject checklist uses planner-local dedupe only; inserts allow controlled duplicate normalisation across subjects via dedicated upsert option</td>
+</tr>
+<tr>
+<td>Edit affordance</td>
+<td>User believed “Edit” failed</td>
+<td>Scroll/focus task form; surface subject rename conflicts instead of silently resetting form</td>
+</tr>
+<tr>
+<td>Schedule editing</td>
+<td>Linked task completed — missing <code>&lt;option&gt;</code></td>
+<td>Include linked done task in dropdown while editing</td>
+</tr>
+<tr>
+<td>Global duplicates</td>
+<td>Legacy or imported duplicates</td>
+<td>Settings merge tool consolidates rows and reassigns sessions</td>
+</tr>
+<tr>
+<td>Manual vs checklist rules</td>
+<td>Need strict typing but flexible imports</td>
+<td>Split enforcement: manual path uses global uniqueness; checklist path uses scoped insert flag</td>
+</tr>
+<tr>
+<td>Live deployment</td>
+<td>Changes not visible on Vercel</td>
+<td>Verify Git push to tracked branch, Vercel deployment success, hard refresh / cache</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>10. Deployment and operations</h2>
+<ul>
+<li><strong>Source control:</strong> Git; <code>master</code> branch used in the referenced workflow (adapt if production uses <code>main</code>).  </li>
+<li><strong>Hosting:</strong> Vercel linked to GitHub — pushes trigger builds.  </li>
+<li><strong>Build:</strong> <code>npm run build</code> (production compile + static generation as configured).  </li>
+<li><strong>Data note:</strong> <code>localStorage</code> is <strong>per origin</strong>. Production (<code>https://…</code>) and <code>localhost</code> do <strong>not</strong> share data—users migrate via <strong>Settings → backup JSON</strong>.</li>
+</ul>
+<hr>
+<h2>11. Future considerations</h2>
+<ul>
+<li>Authenticated accounts and encrypted cloud sync.  </li>
+<li>Shared calendars and ICS export.  </li>
+<li>Notifications / reminders (push or email—requires backend).  </li>
+<li>Deeper analytics (time-on-task, streaks) with explicit privacy policy.  </li>
+<li>Automated tests around merge/dedupe and checklist application logic.</li>
+</ul>
+<hr>
+<h2>Appendix: Exporting this document to PDF</h2>
+<p><strong>From this repository (recommended on Windows):</strong> regenerate printable HTML and a PDF using Microsoft Edge headless (no extra Chromium download):</p>
+<pre><code class="language-bash">npm run docs:pdf
+</code></pre>
+<p>Outputs:</p>
+<ul>
+<li><code>docs/STUDY_PLANNER_DOCUMENTATION.html</code> — open in any browser; <strong>Print → Save as PDF</strong> if you prefer manual export  </li>
+<li><code>docs/STUDY_PLANNER_DOCUMENTATION.pdf</code> — generated when Edge is installed at the standard path</li>
+</ul>
+<p>HTML only:</p>
+<pre><code class="language-bash">npm run docs:html
+</code></pre>
+<p><strong>Microsoft Word / Google Docs:</strong> Paste sections or open HTML/Markdown after conversion, then <strong>Save as PDF</strong> / <strong>Download → PDF</strong>.</p>
+<p><strong>Pandoc</strong> (when installed system-wide):</p>
+<pre><code class="language-bash">pandoc docs/STUDY_PLANNER_DOCUMENTATION.md -o Study_Planner_Documentation.pdf --toc
+</code></pre>
+<p><strong>VS Code:</strong> Use a “Markdown PDF” extension if preferred.</p>
+<p>For formal submissions, add a <strong>cover page</strong> (institution logo, module code, author) in Word or your PDF editor after export.</p>
+<hr>
+<h2>13. Document summary</h2>
+<p>Study Planner delivers a <strong>focused student workflow</strong>—subjects, tasks, and scheduled sessions—within a <strong>modern Next.js application</strong> that persists locally and deploys cleanly to <strong>Vercel</strong>. Architectural discipline (central context, typed domain model, dedicated libraries for templates and dedupe) keeps behaviour understandable as features grow. Documented trade-offs—especially <strong>manual title uniqueness</strong> versus <strong>checklist flexibility</strong>—were resolved with explicit code paths and maintenance tooling. Together, these choices yield a <strong>professional, explainable product</strong> suitable for coursework demonstration, portfolio presentation, or continued iteration toward sync-enabled offerings.</p>
+<hr>
+<p><em>End of document.</em></p>
+
+</article>
+<p class="print-hint"><strong>PDF:</strong> Use <kbd>Ctrl+P</kbd> (Windows) or <kbd>Cmd+P</kbd> (Mac), choose <strong>Save as PDF</strong> or <strong>Microsoft Print to PDF</strong>. Or run <code>npm run docs:pdf</code> if Microsoft Edge is installed.</p>
+</body>
+</html>

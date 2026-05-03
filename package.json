@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "docs:html": "node scripts/export-documentation-html.mjs",
+    "docs:pdf": "node scripts/export-documentation-html.mjs && node scripts/export-documentation-pdf.mjs"
   },
   "dependencies": {
     "next": "16.2.4",
@@ -20,6 +22,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
+    "marked": "^18.0.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

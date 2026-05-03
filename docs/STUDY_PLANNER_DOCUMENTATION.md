@@ -219,19 +219,34 @@ Recommended sequence that reflects how this codebase evolved:
 
 ## Appendix: Exporting this document to PDF
 
-**Microsoft Word / Google Docs:** Paste sections or open after converting Markdown, then **Save as PDF** / **Download → PDF**.
+**From this repository (recommended on Windows):** regenerate printable HTML and a PDF using Microsoft Edge headless (no extra Chromium download):
 
-**Pandoc** (example):
+```bash
+npm run docs:pdf
+```
+
+Outputs:
+
+- `docs/STUDY_PLANNER_DOCUMENTATION.html` — open in any browser; **Print → Save as PDF** if you prefer manual export  
+- `docs/STUDY_PLANNER_DOCUMENTATION.pdf` — generated when Edge is installed at the standard path  
+
+HTML only:
+
+```bash
+npm run docs:html
+```
+
+**Microsoft Word / Google Docs:** Paste sections or open HTML/Markdown after conversion, then **Save as PDF** / **Download → PDF**.
+
+**Pandoc** (when installed system-wide):
 
 ```bash
 pandoc docs/STUDY_PLANNER_DOCUMENTATION.md -o Study_Planner_Documentation.pdf --toc
 ```
 
-Optional PDF engines (e.g. XeLaTeX) improve typography when installed locally.
+**VS Code:** Use a “Markdown PDF” extension if preferred.
 
-**VS Code:** Install a “Markdown PDF” extension and export from the editor.
-
-For formal submissions, add a **cover page** (institution logo, module code, author) in Word after export, or prepend a LaTeX title page when using Pandoc with templates.
+For formal submissions, add a **cover page** (institution logo, module code, author) in Word or your PDF editor after export.
 
 ---
 

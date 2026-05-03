@@ -2,7 +2,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Documentation
 
-Product and technical documentation (suitable for PDF export) lives in **[docs/STUDY_PLANNER_DOCUMENTATION.md](docs/STUDY_PLANNER_DOCUMENTATION.md)**.
+Product and technical documentation lives in **[docs/STUDY_PLANNER_DOCUMENTATION.md](docs/STUDY_PLANNER_DOCUMENTATION.md)**. Regenerate **HTML + PDF** with `npm run docs:pdf` (requires Microsoft Edge); outputs are **`docs/STUDY_PLANNER_DOCUMENTATION.html`** and **`docs/STUDY_PLANNER_DOCUMENTATION.pdf`**.
 
 ## Getting Started
 
