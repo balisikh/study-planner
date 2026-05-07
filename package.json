@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3267",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3267",
     "lint": "eslint",
     "docs:html": "node scripts/export-documentation-html.mjs",
     "docs:pdf": "node scripts/export-documentation-html.mjs && node scripts/export-documentation-pdf.mjs"
